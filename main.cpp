@@ -72,9 +72,10 @@ int main(int argc, char **argv) {
 	  free(outfilename);
   });
 
+  delete originalVglShape;
+  delete firstImage;
+  delete input;
   free(tmppath);
-  free(originalVglShape);
-  free(firstImage);
-  free(input);
+
   return 0;
 }

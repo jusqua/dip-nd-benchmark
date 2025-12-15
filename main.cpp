@@ -56,7 +56,6 @@ int main(int argc, char **argv) {
 
   VglImage *input = vglLoadNdImage(inpath, i0, iN, shape, ndim);
 
-  char *outstring = (char *)"%s/%s/%%05d.tif";
   benchmark(input, rounds, [&](VglImage *image, const char *operation) {
 	  vglCheckContext(image, VGL_RAM_CONTEXT);
 	  if (ndim <= 2) vglReshape(image, originalVglShape);
@@ -68,7 +67,6 @@ int main(int argc, char **argv) {
 		  std::filesystem::create_directories(outfilename);
 
 	  sprintf(outfilename, "%s/%%05d.tif", outfilename);
-
 	  vglSaveNdImage(outfilename, image, i0);
 
 	  free(outfilename);

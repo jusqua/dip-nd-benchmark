@@ -97,12 +97,12 @@ void benchmark(VglImage *image, size_t rounds, std::function<void(VglImage *, co
     .post = save_sample
   });
   builder.attach({
-    .name = "convolute",
+    .name = "convolve",
     .func = [&] { vglClNdConvolution(image, output, strel_mean); },
     .post = save_sample
   });
   builder.attach({
-    .name = "split-convolute",
+    .name = "split-convolve",
     .func = [&] {
       vglClNdConvolution(image, tmp, strel_mean_array[1]);
       for (int i = 2; i <= dimensions; ++i)

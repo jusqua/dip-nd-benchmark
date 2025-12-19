@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <limits>
 #include <print>
 
@@ -128,6 +129,53 @@ public:
 	  }
 
 	  this->output->data[i] = pmin;
+  }
+};
+
+class ConvolveKernel : public WindowKernel {
+public:
+	using WindowKernel::WindowKernel;
+
+  void operator()(sycl::id<> item) const {
+		const size_t i = item.get(0);
+
+		int image_coord[VGL_ARR_SHAPE_SIZE];
+		int window_coord[VGL_ARR_SHAPE_SIZE];
+		int ires = i;
+		int idim = 0;
+		float result = 0.0f;
+
+		for(int d = this->input->dimensions; d >= 1; --d) {
+	    int off = this->input->offset[d];
+	    idim = ires / off;
+	    ires = ires - idim * off;
+	    image_coord[d] = idim - (this->window->shape[d] - 1) / 2;
+	  }
+
+	  int pos = 0;
+	  for(int i = 0; i < this->window->size; ++i) {
+	    if (this->window->data[i] == 0) continue;
+
+	    ires = i;
+	    pos = 0;
+
+	    for(int d = this->input->dimensions; d > this->window->dimensions; --d)
+	      pos += this->input->offset[d] * image_coord[d];
+
+	    for(int d = this->window->dimensions; d >= 1; --d) {
+	      int off = window->offset[d];
+	      idim = ires / off;
+	      ires = ires - idim * off;
+	      window_coord[d] = idim + image_coord[d];
+	      window_coord[d] = sycl::clamp(window_coord[d], 0, this->input->shape[d] - 1);
+
+	      pos += this->input->offset[d] * window_coord[d];
+	    }
+
+			result += this->input->data[pos] * this->window->data[i];
+	  }
+
+	  this->output->data[i] = result;
   }
 };
 
@@ -266,6 +314,24 @@ void benchmark(VglImage *image, size_t rounds, std::function<void(VglImage *, co
       for (int i = 2; i <= dimensions; ++i)
         if (i & 0b1) q.parallel_for(image_size, ErodeKernel(&output, &aux, &window_cube_array[i])).wait();
         else q.parallel_for(image_size, ErodeKernel(&aux, &output, &window_cube_array[i])).wait();
+      if (dimensions & 0b1) q.memcpy(aux.data, output.data, image_size).wait();
+    },
+    .post = save_sample
+  });
+  builder.attach({
+    .name = "convolve",
+    .func = [&] {
+      q.parallel_for(image_size, ConvolveKernel(&input, &output, &window_mean)).wait();
+    },
+    .post = save_sample
+  });
+  builder.attach({
+    .name = "split-convolve",
+    .func = [&] {
+      q.parallel_for(image_size, ConvolveKernel(&input, &aux, &window_mean_array[1])).wait();
+      for (int i = 2; i <= dimensions; ++i)
+        if (i & 0b1) q.parallel_for(image_size, ConvolveKernel(&output, &aux, &window_mean_array[i])).wait();
+        else q.parallel_for(image_size, ConvolveKernel(&aux, &output, &window_mean_array[i])).wait();
       if (dimensions & 0b1) q.memcpy(aux.data, output.data, image_size).wait();
     },
     .post = save_sample

@@ -80,6 +80,45 @@ class WindowKernel : public Kernel {
 protected:
 	Window *window;
 
+	template<typename Func>
+	inline void map(const size_t index, Func&& func) const {
+		int image_coord[VGL_ARR_SHAPE_SIZE];
+		int window_coord[VGL_ARR_SHAPE_SIZE];
+		int ires = index;
+		int idim = 0;
+		uint8_t pmin = 255;
+
+		for(int d = this->input->dimensions; d >= 1; --d) {
+	    int off = this->input->offset[d];
+	    idim = ires / off;
+	    ires = ires - idim * off;
+	    image_coord[d] = idim - (this->window->shape[d] - 1) / 2;
+	  }
+
+	  int image_index = 0;
+	  for(int window_index = 0; window_index < this->window->size; ++window_index) {
+	    if (this->window->data[window_index] == 0) continue;
+
+	    ires = window_index;
+	    image_index = 0;
+
+	    for(int d = this->input->dimensions; d > this->window->dimensions; --d)
+	      image_index += this->input->offset[d] * image_coord[d];
+
+	    for(int d = this->window->dimensions; d >= 1; --d) {
+	      int off = window->offset[d];
+	      idim = ires / off;
+	      ires = ires - idim * off;
+	      window_coord[d] = idim + image_coord[d];
+	      window_coord[d] = sycl::clamp(window_coord[d], 0, this->input->shape[d] - 1);
+
+	      image_index += this->input->offset[d] * window_coord[d];
+	    }
+
+	    func(image_index, window_index);
+	  }
+	}
+
 public:
   WindowKernel(Image *input, Image *output, Window *window)
     : Kernel(input, output), window(window) {}
@@ -92,41 +131,10 @@ public:
   void operator()(sycl::id<> item) const {
 		const size_t i = item.get(0);
 
-		int image_coord[VGL_ARR_SHAPE_SIZE];
-		int window_coord[VGL_ARR_SHAPE_SIZE];
-		int ires = i;
-		int idim = 0;
 		uint8_t pmin = 255;
-
-		for(int d = this->input->dimensions; d >= 1; --d) {
-	    int off = this->input->offset[d];
-	    idim = ires / off;
-	    ires = ires - idim * off;
-	    image_coord[d] = idim - (this->window->shape[d] - 1) / 2;
-	  }
-
-	  int pos = 0;
-	  for(int i = 0; i < this->window->size; ++i) {
-	    if (this->window->data[i] == 0) continue;
-
-	    ires = i;
-	    pos = 0;
-
-	    for(int d = this->input->dimensions; d > this->window->dimensions; --d)
-	      pos += this->input->offset[d] * image_coord[d];
-
-	    for(int d = this->window->dimensions; d >= 1; --d) {
-	      int off = window->offset[d];
-	      idim = ires / off;
-	      ires = ires - idim * off;
-	      window_coord[d] = idim + image_coord[d];
-	      window_coord[d] = sycl::clamp(window_coord[d], 0, this->input->shape[d] - 1);
-
-	      pos += this->input->offset[d] * window_coord[d];
-	    }
-
-	    pmin = sycl::min(pmin, this->input->data[pos]);
-	  }
+		map(i, [&](size_t image_index, size_t _) {
+	    pmin = sycl::min(pmin, this->input->data[image_index]);
+	  });
 
 	  this->output->data[i] = pmin;
   }
@@ -139,41 +147,10 @@ public:
   void operator()(sycl::id<> item) const {
 		const size_t i = item.get(0);
 
-		int image_coord[VGL_ARR_SHAPE_SIZE];
-		int window_coord[VGL_ARR_SHAPE_SIZE];
-		int ires = i;
-		int idim = 0;
 		float result = 0.0f;
-
-		for(int d = this->input->dimensions; d >= 1; --d) {
-	    int off = this->input->offset[d];
-	    idim = ires / off;
-	    ires = ires - idim * off;
-	    image_coord[d] = idim - (this->window->shape[d] - 1) / 2;
-	  }
-
-	  int pos = 0;
-	  for(int i = 0; i < this->window->size; ++i) {
-	    if (this->window->data[i] == 0) continue;
-
-	    ires = i;
-	    pos = 0;
-
-	    for(int d = this->input->dimensions; d > this->window->dimensions; --d)
-	      pos += this->input->offset[d] * image_coord[d];
-
-	    for(int d = this->window->dimensions; d >= 1; --d) {
-	      int off = window->offset[d];
-	      idim = ires / off;
-	      ires = ires - idim * off;
-	      window_coord[d] = idim + image_coord[d];
-	      window_coord[d] = sycl::clamp(window_coord[d], 0, this->input->shape[d] - 1);
-
-	      pos += this->input->offset[d] * window_coord[d];
-	    }
-
-			result += this->input->data[pos] * this->window->data[i];
-	  }
+		map(i, [&](size_t image_index, size_t window_index) {
+			result += this->input->data[image_index] * this->window->data[window_index];
+	  });
 
 	  this->output->data[i] = result;
   }

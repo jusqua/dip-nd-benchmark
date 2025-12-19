@@ -1,5 +1,12 @@
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 cmake_minimum_required(VERSION 3.25)
+
+if(NOT CMAKE_EXPORT_COMPILE_COMMANDS)
+	set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE Release)
+endif()
 
 project(benchmark LANGUAGES CXX)
 set(SOURCES main.cpp main.hpp utils.hpp)

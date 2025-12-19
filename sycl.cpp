@@ -132,8 +132,8 @@ void benchmark(VglImage *image, size_t rounds, std::function<void(VglImage *, co
   auto d_input_data = sycl::malloc_device<uint8_t>(image_size, q);
   auto d_output_data = sycl::malloc_device<uint8_t>(image_size, q);
 
-  q.memcpy(d_offset, image->vglShape->shape, dimensions_size).wait();
-  q.memcpy(d_shape, image->vglShape->offset, dimensions_size).wait();
+  q.memcpy(d_shape, image->vglShape->shape, dimensions_size).wait();
+  q.memcpy(d_offset, image->vglShape->offset, dimensions_size).wait();
   q.memcpy(d_input_data, image->getImageData(), image_size).wait();
 
   auto input = Image(d_input_data, d_shape, d_offset, dimensions, image_size);

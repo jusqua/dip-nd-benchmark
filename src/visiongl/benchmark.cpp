@@ -5,8 +5,7 @@
 #include <visiongl/shape.hpp>
 #include <visiongl/strel.hpp>
 
-#include "main.hpp"
-#include "utils.hpp"
+#include "../_shared/utils.hpp"
 
 void benchmark(VglImage *image, size_t rounds, std::function<void(VglImage *, const char *)> save_image) {
   vglClInit();

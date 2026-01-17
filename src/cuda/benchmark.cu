@@ -7,8 +7,7 @@
 #include <visiongl/image.hpp>
 #include <visiongl/strel.hpp>
 
-#include "main.hpp"
-#include "utils.hpp"
+#include "../_shared/utils.hpp"
 
 __global__ void invertKernel(const Image *input, Image *output) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;

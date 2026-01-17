@@ -1,0 +1,10 @@
+set(SOURCES "../_shared/main.cpp" "../_shared/utils.hpp" "benchmark.cpp")
+
+find_package(visiongl CONFIG REQUIRED)
+if(CMAKE_CXX_COMPILER MATCHES "acpp")
+	find_package(AdaptiveCpp CONFIG REQUIRED PATHS)
+	add_executable(benchmark_acpp_sycl ${SOURCES})
+	set_property(TARGET benchmark_acpp_sycl PROPERTY CXX_STANDARD 26)
+	target_link_libraries(benchmark_acpp_sycl PRIVATE ${AdaptiveCpp_LIBS} visiongl::visiongl)
+	add_sycl_to_target(TARGET benchmark_acpp_sycl SOURCES ${SOURCES})
+endif()

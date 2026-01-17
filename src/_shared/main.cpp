@@ -5,7 +5,7 @@
 #include <visiongl/image.hpp>
 #include <visiongl/shape.hpp>
 
-#include "main.hpp"
+#include "utils.hpp"
 
 // Based on https://github.com/jusqua/visiongl/blob/f70941a3908ac3e297ec0f76d35d5d2126999fda/demo/cl_nd/main.cpp
 int main(int argc, char **argv) {

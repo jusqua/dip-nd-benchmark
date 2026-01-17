@@ -1,0 +1,16 @@
+set(SOURCES "../_shared/main.cpp" "../_shared/utils.hpp" "benchmark.cu")
+
+find_package(visiongl CONFIG REQUIRED)
+if(CMAKE_CXX_COMPILER MATCHES "acpp")
+	set_source_files_properties(benchmark.cu PROPERTIES LANGUAGE CXX)
+	add_executable(benchmark_acpp_pcuda ${SOURCES})
+	target_compile_options(benchmark_acpp_pcuda PRIVATE --acpp-pcuda --acpp-pcuda-chevron-launch)
+	set_property(TARGET benchmark_acpp_pcuda PROPERTY CXX_STANDARD 26)
+	target_link_libraries(benchmark_acpp_pcuda PRIVATE visiongl::visiongl)
+else()
+	# TODO: Test with proper CUDA environment
+	enable_language(CUDA)
+	add_executable(benchmark_cuda ${SOURCES})
+	set_property(TARGET benchmark_cuda PROPERTY CXX_STANDARD 26)
+	target_link_libraries(benchmark_cuda PRIVATE visiongl::visiongl)
+endif()

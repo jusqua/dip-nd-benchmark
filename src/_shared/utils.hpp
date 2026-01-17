@@ -1,8 +1,16 @@
+#pragma once
+
+#ifndef DIP_ND_BENCHMARK_UTILS_HPP
+#define DIP_ND_BENCHMARK_UTILS_HPP
+
 #include <chrono>
 #include <functional>
 #include <print>
 #include <string>
 #include <vector>
+#include <functional>
+
+#include <visiongl/image.hpp>
 
 struct Image {
 	uint8_t *data;
@@ -78,3 +86,8 @@ public:
     }
   }
 };
+
+
+void benchmark(VglImage *image, size_t rounds, std::function<void(VglImage *, const char *)> save_image);
+
+#endif // DIP_ND_BENCHMARK_UTILS_HPP

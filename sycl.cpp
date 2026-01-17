@@ -14,32 +14,6 @@
 #include "main.hpp"
 #include "utils.hpp"
 
-struct Image {
-	uint8_t *data;
-	int *shape;
-  int *offset;
-  uint8_t dimensions;
-  size_t size;
-
-  Image() : data(nullptr), shape(nullptr), offset(nullptr), dimensions(0), size(0) {}
-
-  Image(uint8_t *data, int *shape, int *offset, uint8_t dimensions, size_t size)
-  	: data(data), shape(shape), offset(offset), dimensions(dimensions), size(size) {}
-};
-
-struct Window {
-	float *data;
-	int *shape;
-  int *offset;
-  uint8_t dimensions;
-  size_t size;
-
-  Window() : data(nullptr), shape(nullptr), offset(nullptr), dimensions(0), size(0) {}
-
-  Window(float *data, int *shape, int *offset, uint8_t dimensions, size_t size)
-  	: data(data), shape(shape), offset(offset), dimensions(dimensions), size(size) {}
-};
-
 class Kernel {
 protected:
 	Image *input;
@@ -131,7 +105,7 @@ public:
   void operator()(sycl::id<> item) const {
 		const size_t i = item.get(0);
 
-		uint8_t pmin = 255;
+		uint8_t pmin = std::numeric_limits<uint8_t>::max();
 		map(i, [&](size_t image_index, size_t _) {
 	    pmin = sycl::min(pmin, this->input->data[image_index]);
 	  });

@@ -4,6 +4,32 @@
 #include <string>
 #include <vector>
 
+struct Image {
+	uint8_t *data;
+	int *shape;
+  int *offset;
+  uint8_t dimensions;
+  size_t size;
+
+  Image() : data(nullptr), shape(nullptr), offset(nullptr), dimensions(0), size(0) {}
+
+  Image(uint8_t *data, int *shape, int *offset, uint8_t dimensions, size_t size)
+  	: data(data), shape(shape), offset(offset), dimensions(dimensions), size(size) {}
+};
+
+struct Window {
+	float *data;
+	int *shape;
+  int *offset;
+  uint8_t dimensions;
+  size_t size;
+
+  Window() : data(nullptr), shape(nullptr), offset(nullptr), dimensions(0), size(0) {}
+
+  Window(float *data, int *shape, int *offset, uint8_t dimensions, size_t size)
+  	: data(data), shape(shape), offset(offset), dimensions(dimensions), size(size) {}
+};
+
 struct BenchmarkSpec {
   std::string name;
   std::function<void(void)> func;

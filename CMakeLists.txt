@@ -1,45 +1,32 @@
+# WARNING: HALF-BAKED CMAKE CONFIG FILES AHEAD!
 cmake_minimum_required(VERSION 3.25)
 
-if(NOT CMAKE_EXPORT_COMPILE_COMMANDS)
-	set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 project(benchmark LANGUAGES CXX)
 
-if(NOT DIP_ND_BENCHMARK_ENABLE_CUDA)
-	if(CMAKE_CXX_COMPILER MATCHES "acpp")
-		message(STATUS "Compiler capabilities detected, enabling CUDA benchmarks")
-	else()
-		message(STATUS "Compiler not capable of compiling CUDA benchmarks")
-	endif()
-	# TODO: Handle CUDA benchmarks with other compilers
+option(DIP_ND_BENCHMARK_ENABLE_VISIONGL "Enable VisionGL benchmarks" ON)
+option(DIP_ND_BENCHMARK_ENABLE_CUDA "Enable CUDA benchmarks" ON)
+option(DIP_ND_BENCHMARK_ENABLE_SYCL "Enable SYCL benchmarks" ON)
+
+set(SHARED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/src/main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/include/_shared/utils.hpp)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/include)
+add_compile_options(-Wall -Wextra -std=c++20)
+
+if(DIP_ND_BENCHMARK_ENABLE_CUDA STREQUAL ON AND (CMAKE_CXX_COMPILER MATCHES "acpp" OR CMAKE_CUDA_COMPILER MATCHES "nvcc"))
+    add_subdirectory(src/cuda cuda)
 endif()
 
-if(NOT DIP_ND_BENCHMARK_ENABLE_SYCL)
-	if(CMAKE_CXX_COMPILER MATCHES "acpp")
-		message(STATUS "Compiler capabilities detected, enabling SYCL benchmarks")
-	else()
-		message(STATUS "Compiler not capable of compiling SYCL benchmarks")
-	endif()
-	# TODO: Handle SYCL benchmarks with Intel DPCPP
-endif()
-
-if(NOT DIP_ND_BENCHMARK_ENABLE_VISIONGL)
-	message(STATUS "Enabling VisionGL benchmarks")
-endif()
-
-if(DIP_ND_BENCHMARK_ENABLE_CUDA STREQUAL ON)
-	add_subdirectory(src/cuda)
-endif()
-
-if(DIP_ND_BENCHMARK_ENABLE_SYCL STREQUAL ON)
-	add_subdirectory(src/sycl)
+if(DIP_ND_BENCHMARK_ENABLE_SYCL STREQUAL ON AND (CMAKE_CXX_COMPILER MATCHES "acpp" OR CMAKE_CXX_COMPILER MATCHES "icpx"))
+    add_subdirectory(src/sycl sycl)
 endif()
 
 if(DIP_ND_BENCHMARK_ENABLE_VISIONGL STREQUAL ON)
-	add_subdirectory(src/visiongl)
+    add_subdirectory(src/visiongl visiongl)
 endif()

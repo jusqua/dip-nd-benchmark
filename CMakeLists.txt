@@ -17,7 +17,7 @@ option(DIP_ND_BENCHMARK_ENABLE_SYCL "Enable SYCL benchmarks" ON)
 
 set(SHARED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/src/main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/include/_shared/utils.hpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/_shared/include)
-add_compile_options(-Wall -Wextra -std=c++20)
+add_compile_options(-Wall -Wextra -std=c++20 -O3)
 
 if(DIP_ND_BENCHMARK_ENABLE_CUDA STREQUAL ON AND (CMAKE_CXX_COMPILER MATCHES "acpp" OR CMAKE_CUDA_COMPILER MATCHES "nvcc"))
     add_subdirectory(src/cuda cuda)

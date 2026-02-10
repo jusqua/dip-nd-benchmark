@@ -1,38 +1,35 @@
 {
-	"version": 6,
-	"configurePresets": [
-		{
-			"hidden": true,
-			"name": "base",
-			"binaryDir": "${sourceDir}/build",
-			"generator": "Ninja",
-			"cacheVariables": {
-				"CMAKE_CXX_COMPILER": "clang++",
-				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-				"CMAKE_BUILD_TYPE": "Release",
-				"CMAKE_LINKER_TYPE": "LLD"
-			},
-			"condition": {
-				"type": "equals",
-				"lhs": "${hostSystemName}",
-				"rhs": "Linux"
-			}
-		},
-		{
-			"inherits": "base",
-			"name": "cuda+visiongl",
-			"binaryDir": "${sourceDir}/build",
-			"cacheVariables": {
-				"CMAKE_CUDA_COMPILER": "nvcc"
-			}
-		},
-		{
-			"inherits": "base",
-			"name": "pcuda+sycl+visiongl",
-			"binaryDir": "${sourceDir}/build",
-			"cacheVariables": {
-				"CMAKE_CXX_COMPILER": "acpp"
-			}
-		}
-	]
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "visiongl",
+      "binaryDir": "${sourceDir}/build",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_LINKER_TYPE": "LLD"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "inherits": "visiongl",
+      "name": "cuda+visiongl",
+      "cacheVariables": {
+        "CMAKE_CUDA_COMPILER": "nvcc"
+      }
+    },
+    {
+      "inherits": "visiongl",
+      "name": "pcuda+sycl+visiongl",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "acpp"
+      }
+    }
+  ]
 }

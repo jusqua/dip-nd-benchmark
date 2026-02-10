@@ -21,4 +21,4 @@ matlab -batch "$PRELUDE benchmark(\"$IMAGE_PATTERN\", $INDEX_0, $INDEX_N, $ROUND
 echo "Running MATLAB 5D benchmark"
 matlab -batch "$PRELUDE benchmark(\"$IMAGE_PATTERN\", $INDEX_0, $INDEX_N, $ROUNDS, \"$OUTPUT_FOLDER\", 256, 256, 2, 24, 7);" > "$RESULT_FOLDER/matlab-5d.csv" 2> "$RESULT_FOLDER/matlab-5d.log"
 
-echo "Results and logs saved in $RESULT_FOLDER"
+echo "Results and logs saved in $(realpath $RESULT_FOLDER)"

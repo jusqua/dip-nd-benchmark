@@ -37,4 +37,4 @@ ACPP_DEBUG_LEVEL=0 ACPP_ADAPTIVITY_LEVEL=2 $BUILD_FOLDER/benchmark $IMAGE_PATTER
 echo "Running AdaptiveCPP SYCL L2 5D benchmark"
 ACPP_DEBUG_LEVEL=0 ACPP_ADAPTIVITY_LEVEL=2 $BUILD_FOLDER/benchmark $IMAGE_PATTERN $INDEX_0 $INDEX_N $ROUNDS $OUTPUT_FOLDER 256 256 2 24 7 > "$RESULT_FOLDER/acpp-sycl-l2-5d.csv" 2> "$RESULT_FOLDER/acpp-sycl-l2-5d.log"
 
-echo "Results and logs saved in $RESULT_FOLDER"
+echo "Results and logs saved in $(realpath $RESULT_FOLDER)"

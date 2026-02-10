@@ -53,4 +53,4 @@ $BUILD_FOLDER/benchmark $IMAGE_PATTERN $INDEX_0 $INDEX_N $ROUNDS $OUTPUT_FOLDER 
 echo "Running CUDA 5D benchmark"
 $BUILD_FOLDER/benchmark $IMAGE_PATTERN $INDEX_0 $INDEX_N $ROUNDS $OUTPUT_FOLDER 256 256 2 24 7 > "$RESULT_FOLDER/cuda-5d.csv" 2> "$RESULT_FOLDER/cuda-5d.log"
 
-echo "Results and logs saved in $RESULT_FOLDER"
+echo "Results and logs saved in $(realpath $RESULT_FOLDER)"

@@ -7,7 +7,7 @@
 #include <visiongl/image.hpp>
 #include <visiongl/strel.hpp>
 
-#include <_shared/utils.hpp>
+#include <utils.hpp>
 
 class Kernel {
 protected:

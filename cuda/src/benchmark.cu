@@ -4,7 +4,7 @@
 #include <visiongl/image.hpp>
 #include <visiongl/strel.hpp>
 
-#include <_shared/utils.hpp>
+#include <utils.hpp>
 
 __global__ void invertKernel(Image const* input, Image* output)
 {

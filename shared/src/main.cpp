@@ -7,8 +7,6 @@
 
 #include <utils.hpp>
 
-// TODO: Fix 1D benchmarks
-// Adapted https://github.com/jusqua/visiongl/blob/f70941a3908ac3e297ec0f76d35d5d2126999fda/demo/cl_nd/main.cpp
 int main(int argc, char** argv)
 {
     auto usage = "Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> [<d1> <d2> ... <dN>]\n"
@@ -31,13 +29,8 @@ int main(int argc, char** argv)
 
     int shape[VGL_ARR_SHAPE_SIZE] = { 0 };
     int ndim = 3;
-    if (argc == ARGD1) {
+    if (argc < ARGD1) {
         shape[VGL_SHAPE_D3] = iN - i0 + 1;
-    } else if ((argc == ARGD1 + 3) && (strcmp(argv[ARGD1 + 2], "-1d") == 0)) {
-        ndim = 1;
-        for (int i = 0; i < 2; i++) {
-            shape[1 + i] = atoi(argv[ARGD1 + i]);
-        }
     } else {
         ndim = argc - ARGD1;
         for (int i = 0; i < ndim; i++) {

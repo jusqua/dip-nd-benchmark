@@ -103,12 +103,12 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
         @(name) save_split_erode_cube(gpuImageStack, seCubeSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('convolve', ...
-        @() convn(gpuImageStackSingle, seMean), ...
+        @() convn(gpuImageStackSingle, seMean, 'same'), ...
         @(name) save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('split-convolve', ...
-        @() perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims), ...
-        @(name) save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @() perform_split_convolve(gpuImageStack, seMeanSep, numDims), ...
+        @(name) save_split_convolve(gpuImageStack, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.run(numRounds);
 end
@@ -181,7 +181,7 @@ function save_split_erode_cube(gpuImageStack, seCubeSep, numDims, rows, cols, nu
 end
 
 function save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(convn(gpuImageStackSingle, seMean)), [rows, cols, numImages]);
+    result = reshape(gather(convn(gpuImageStackSingle, seMean, 'same')), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'convolve'));
     outputResultPattern = fullfile(outputFolder, 'convolve', filePattern);
     for i = startIndex:endIndex
@@ -191,8 +191,8 @@ function save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outpu
     end
 end
 
-function save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims);
+function save_split_convolve(gpuImageStack, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = perform_split_convolve(gpuImageStack, seMeanSep, numDims);
     result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'split-convolve'));
     outputResultPattern = fullfile(outputFolder, 'split-convolve', filePattern);
@@ -218,12 +218,12 @@ function result = perform_split_erode_cube(gpuImageStack, seCubeSep, numDims)
 end
 
 function result = perform_split_convolve(gpuImageStack, seMeanSep, numDims)
-    aux = convn(gpuImageStack, seMeanSep{1});
+    aux = convn(gpuImageStack, seMeanSep{1}, 'same');
     for j = 2:numDims
         if (mod(j, 2) == 0)
-            result = convn(aux, seMeanSep{j});
+            result = convn(aux, seMeanSep{j}, 'same');
         else
-            aux = convn(result, seMeanSep{j});
+            aux = convn(result, seMeanSep{j}, 'same');
         end
     end
     if (mod(numDims, 2) == 1)

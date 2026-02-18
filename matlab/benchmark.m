@@ -1,5 +1,3 @@
-% TODO: Fix 1D benchmark
-
 function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, varargin)
     if nargin < 5
         fprintf("Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> [<d1> <d2> ... <dN>]\n");
@@ -34,7 +32,11 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
 
     filePattern = '%05d.tif';
 
-    reshapedData = reshape(imageStack, geometry);
+    if numDims == 1
+        reshapedData = imageStack(:);
+    else
+        reshapedData = reshape(imageStack, geometry);
+    end
     gpuImageStackSingle = gpuArray(single(reshapedData));
     gpuImageStack = gpuArray(uint8(reshapedData));
     gpuDev = gpuDevice();
@@ -57,7 +59,11 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     for i = 1:numDims
         curShape = ones(1, numDims);
         curShape(i) = 3;
-        seMeanSep{i} = reshape(baseValue, curShape);
+        if numDims == 1
+            seMeanSep{i} = baseValue(:);
+        else
+            seMeanSep{i} = reshape(baseValue, curShape);
+        end
     end
 
     thresholdLevel = 128;

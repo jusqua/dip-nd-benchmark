@@ -27,7 +27,7 @@ classdef BenchmarkBuilder < handle
                 rounds = 1;
             end
 
-            fprintf("operation,once");
+            fprintf("operator,once");
             if rounds > 1
                 fprintf(",mean");
             end

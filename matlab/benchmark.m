@@ -107,8 +107,8 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
         @(name) save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('split-convolve', ...
-        @() perform_split_convolve(gpuImageStack, seMeanSep, numDims), ...
-        @(name) save_split_convolve(gpuImageStack, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @() perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims), ...
+        @(name) save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.run(numRounds);
 end
@@ -191,8 +191,8 @@ function save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outpu
     end
 end
 
-function save_split_convolve(gpuImageStack, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = perform_split_convolve(gpuImageStack, seMeanSep, numDims);
+function save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims);
     result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'split-convolve'));
     outputResultPattern = fullfile(outputFolder, 'split-convolve', filePattern);

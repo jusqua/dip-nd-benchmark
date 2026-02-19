@@ -10,13 +10,13 @@ INDEX_0=0
 INDEX_N=335
 ROUNDS=${1:-0}
 
-echo "Building AdaptiveCPP PCUDA benchmark"
+echo "Building AdaptiveCpp PCUDA benchmark"
 rm -rf $BUILD_FOLDER
 cmake -G Ninja -S . -B $BUILD_FOLDER -D CMAKE_BUILD_TYPE=Release -D CMAKE_LINKER_TYPE=LLD -D CMAKE_CXX_COMPILER=acpp > /dev/null 2>&1
 cmake --build $BUILD_FOLDER > /dev/null 2>&1
 
 OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/acpp-pcuda-l1"
-TECH_NAME="AdaptiveCPP PCUDA L1"
+TECH_NAME="AdaptiveCpp PCUDA L1"
 mkdir -p "$OUTPUT_FOLDER/1D" "$OUTPUT_FOLDER/2D" "$OUTPUT_FOLDER/3D" "$OUTPUT_FOLDER/4D" "$OUTPUT_FOLDER/5D"
 echo $TECH_NAME > "$OUTPUT_FOLDER/$TXT_FILENAME"
 echo "Running $TECH_NAME 1D benchmark"
@@ -32,7 +32,7 @@ ACPP_DEBUG_LEVEL=0 ACPP_ADAPTIVITY_LEVEL=1 $BUILD_FOLDER/benchmark $IMAGE_PATTER
 echo "Results and logs saved in $(realpath $OUTPUT_FOLDER)"
 
 OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/acpp-pcuda-l2"
-TECH_NAME="AdaptiveCPP PCUDA L2"
+TECH_NAME="AdaptiveCpp PCUDA L2"
 mkdir -p "$OUTPUT_FOLDER/1D" "$OUTPUT_FOLDER/2D" "$OUTPUT_FOLDER/3D" "$OUTPUT_FOLDER/4D" "$OUTPUT_FOLDER/5D"
 echo $TECH_NAME > "$OUTPUT_FOLDER/$TXT_FILENAME"
 echo "Running $TECH_NAME 1D benchmark"

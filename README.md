@@ -3,10 +3,10 @@
 ## Requirements
 
 - Intel LLVM Compiler
-- AdaptiveCPP Compiler
+- AdaptiveCpp Compiler
 - CUDA Compiler
 - MATLAB
-- libvisiongl
+- [this specific version of the VisionGL](https://github.com/jusqua/visiongl/archive/83bb5314a4ff9ff487fdc6328caebf7505f3db66.tar.gz)
 - libtiff
 
 ## Usage

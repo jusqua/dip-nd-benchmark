@@ -62,13 +62,15 @@ def main():
                             group_results_map[row[2]][row[0]] = {}
                         if group_results_map[row[2]][row[0]].get(tech) is None:
                             group_results_map[row[2]][row[0]][tech] = []
-                        group_results_map[row[2]][row[0]][tech].append(float(row[-1]))
+                        group_results_map[row[2]][row[0]][tech].append(
+                            float(row[-1]) * 1000
+                        )
                     if row[1] == "single":
                         if single_results_map.get(row[0]) is None:
                             single_results_map[row[0]] = {}
                         if single_results_map[row[0]].get(tech) is None:
                             single_results_map[row[0]][tech] = []
-                        single_results_map[row[0]][tech].append(float(row[-1]))
+                        single_results_map[row[0]][tech].append(float(row[-1]) * 1000)
 
     for operator, tech_map in single_results_map.items():
         fig, _ = plot.subplots(figsize=(8, 6))
@@ -94,23 +96,20 @@ def main():
             line_titles.append(tech_name_map[tech])
 
         plot.xlabel("Image Dimension", fontsize="large")
-        plot.ylabel("Time (s)", fontsize="large")
+        plot.ylabel("Time (ms)", fontsize="large")
         plot.yscale("log")
         plot.xticks(dimensions, dimensions_label)
         plot.grid(True, axis="both")
 
-        legend = plot.legend(
+        plot.legend(
             [x[0] for x in result_lines],
             line_titles,
-            bbox_to_anchor=[1, 1.15],
-            shadow=False,
-            loc="upper right",
+            bbox_to_anchor=(0, 1.005, 1, 0.2),
+            loc="lower left",
+            mode="expand",
+            borderaxespad=0,
+            ncol=3,
         )
-
-        frame = legend.get_frame()
-        frame.set_facecolor("1.0")
-        for t in legend.get_texts():
-            t.set_fontsize("large")
 
         plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"))
         plot.close()
@@ -170,18 +169,19 @@ def main():
                     )
 
         ax.set_xlabel("Operations", fontsize="large", weight="bold")
-        ax.set_ylabel("Time (s)", fontsize="large", weight="bold")
-        ax.set_title(
-            "Single Operations Performance Comparison",
-            fontsize="large",
-            weight="bold",
-        )
+        ax.set_ylabel("Time (ms)", fontsize="large", weight="bold")
         ax.set_xticks(x + width * (len(technologies) - 1) / 2)
         ax.set_xticklabels(operators, rotation=45, ha="right")
         ax.set_yscale("log")
         ax.grid(True, axis="y", alpha=0.3)
 
-        ax.legend(loc="upper left", fontsize="large", framealpha=0.9)
+        ax.legend(
+            bbox_to_anchor=(0, 1.02, 1, 0.2),
+            loc="lower left",
+            mode="expand",
+            borderaxespad=0,
+            ncol=3,
+        )
 
         plot.tight_layout()
         plot.savefig(

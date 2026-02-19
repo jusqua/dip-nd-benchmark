@@ -46,6 +46,8 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
 
     builder.attach({
         .name = "upload",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             vglSetContext(image, VGL_RAM_CONTEXT);
             vglClUpload(image);
@@ -53,26 +55,36 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
     });
     builder.attach({
         .name = "download",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             vglSetContext(image, VGL_CL_CONTEXT);
             vglClDownload(image);
         },
     });
     builder.attach({ .name = "copy",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             vglClNdCopy(image, output);
         },
         .post = save_sample });
     builder.attach({ .name = "invert",
+        .type = "group",
+        .group = "point",
         .func = [&] { vglClNdNot(image, output); },
         .post = save_sample });
     builder.attach({ .name = "threshold",
+        .type = "group",
+        .group = "point",
         .func = [&] { vglClNdThreshold(image, output, 128, 255); },
         .post = save_sample });
     builder.attach({ .name = "erode-cube",
+        .type = "single",
         .func = [&] { vglClNdErode(image, output, strel_cube); },
         .post = save_sample });
     builder.attach({ .name = "split-erode-cube",
+        .type = "single",
         .func = [&] {
             vglClNdErode(image, tmp, strel_cube_array[1]);
             for (int i = 2; i <= dimensions; ++i)
@@ -85,12 +97,15 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
         },
         .post = save_sample });
     builder.attach({ .name = "erode-cross",
+        .type = "single",
         .func = [&] { vglClNdErode(image, output, strel_cross); },
         .post = save_sample });
     builder.attach({ .name = "convolve",
+        .type = "single",
         .func = [&] { vglClNdConvolution(image, output, strel_mean); },
         .post = save_sample });
     builder.attach({ .name = "split-convolve",
+        .type = "single",
         .func = [&] {
             vglClNdConvolution(image, tmp, strel_mean_array[1]);
             for (int i = 2; i <= dimensions; ++i)

@@ -63,6 +63,8 @@ struct Window {
 
 struct BenchmarkSpec {
     std::string name;
+    std::string type;
+    std::string group = "";
     std::function<void(void)> func;
     std::function<void(std::string)> post = nullptr;
 };
@@ -78,7 +80,7 @@ private:
         auto time_end_once = std::chrono::high_resolution_clock::now();
         double once_duration = std::chrono::duration<double>(time_end_once - time_start_once).count();
 
-        std::cout << spec.name << "," << once_duration;
+        std::cout << spec.name << "," << spec.type << "," << spec.group << "," << once_duration;
 
         if (rounds <= 1) {
             std::cout << "\n";
@@ -99,7 +101,7 @@ public:
 
     inline void run(std::size_t rounds)
     {
-        std::cout << "operator,once";
+        std::cout << "operator,type,group,once";
         if (rounds <= 1)
             std::cout << "\n";
         else

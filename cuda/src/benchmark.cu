@@ -213,37 +213,49 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
 
     auto builder = BenchmarkBuilder();
     builder.attach({ .name = "upload",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             cudaMemcpy(d_input_data, image->getImageData(), image_size, cudaMemcpyHostToDevice);
         } });
     builder.attach({ .name = "download",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             cudaMemcpy(tmp->getImageData(), d_input_data, image_size, cudaMemcpyDeviceToHost);
         } });
     builder.attach({ .name = "copy",
+        .type = "group",
+        .group = "memory",
         .func = [&] {
             cudaMemcpy(d_output_data, d_input_data, image_size, cudaMemcpyDeviceToDevice);
         },
         .post = save_sample });
     builder.attach({ .name = "invert",
+        .type = "group",
+        .group = "point",
         .func = [&] {
             invertKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img);
             cudaDeviceSynchronize();
         },
         .post = save_sample });
     builder.attach({ .name = "threshold",
+        .type = "group",
+        .group = "point",
         .func = [&] {
             thresholdKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, 128, 255);
             cudaDeviceSynchronize();
         },
         .post = save_sample });
     builder.attach({ .name = "erode-cube",
+        .type = "single",
         .func = [&] {
             erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_cube);
             cudaDeviceSynchronize();
         },
         .post = save_sample });
     builder.attach({ .name = "split-erode-cube",
+        .type = "single",
         .func = [&] {
             erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_aux_img, d_window_cube_array[1]);
             cudaDeviceSynchronize();
@@ -261,18 +273,21 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
         },
         .post = save_sample });
     builder.attach({ .name = "erode-cross",
+        .type = "single",
         .func = [&] {
             erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_cross);
             cudaDeviceSynchronize();
         },
         .post = save_sample });
     builder.attach({ .name = "convolve",
+        .type = "single",
         .func = [&] {
             convolveKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_mean);
             cudaDeviceSynchronize();
         },
         .post = save_sample });
     builder.attach({ .name = "split-convolve",
+        .type = "single",
         .func = [&] {
             convolveKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_aux_img, d_window_mean_array[1]);
             cudaDeviceSynchronize();

@@ -237,15 +237,16 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
     };
 
     auto builder = BenchmarkBuilder();
-    builder.attach({ .name = "upload", .func = [&] { q.memcpy(d_input_data, image->getImageData(), image_size).wait(); } });
-    builder.attach({ .name = "download", .func = [&] { q.memcpy(tmp->getImageData(), d_input_data, image_size).wait(); } });
-    builder.attach({ .name = "copy", .func = [&] { q.memcpy(d_output_data, d_input_data, image_size).wait(); }, .post = save_sample });
-    builder.attach({ .name = "invert", .func = [&] { q.parallel_for(image_size, InvertKernel(d_input, d_output)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "threshold", .func = [&] { q.parallel_for(image_size, ThresholdKernel(d_input, d_output, 128, 255)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "erode-cross", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cross)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "erode-cube", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cube)).wait(); }, .post = save_sample });
+    builder.attach({ .name = "upload", .type = "group", .group = "memory", .func = [&] { q.memcpy(d_input_data, image->getImageData(), image_size).wait(); } });
+    builder.attach({ .name = "download", .type = "group", .group = "memory", .func = [&] { q.memcpy(tmp->getImageData(), d_input_data, image_size).wait(); } });
+    builder.attach({ .name = "copy", .type = "group", .group = "memory", .func = [&] { q.memcpy(d_output_data, d_input_data, image_size).wait(); }, .post = save_sample });
+    builder.attach({ .name = "invert", .type = "group", .group = "point", .func = [&] { q.parallel_for(image_size, InvertKernel(d_input, d_output)).wait(); }, .post = save_sample });
+    builder.attach({ .name = "threshold", .type = "group", .group = "point", .func = [&] { q.parallel_for(image_size, ThresholdKernel(d_input, d_output, 128, 255)).wait(); }, .post = save_sample });
+    builder.attach({ .name = "erode-cross", .type = "single", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cross)).wait(); }, .post = save_sample });
+    builder.attach({ .name = "erode-cube", .type = "single", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cube)).wait(); }, .post = save_sample });
     builder.attach({
         .name = "split-erode-cube",
+        .type = "single",
         .func = [&] {
             q.parallel_for(image_size, ErodeKernel(d_input, d_aux, window_cube_array_d[1])).wait();
             for (int i = 2; i <= dimensions; ++i)
@@ -260,11 +261,13 @@ void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, cha
     });
     builder.attach({
         .name = "convolve",
+        .type = "single",
         .func = [&] { q.parallel_for(image_size, ConvolveKernel(d_input, d_output, d_window_mean)).wait(); },
         .post = save_sample,
     });
     builder.attach({
         .name = "split-convolve",
+        .type = "single",
         .func = [&] {
             q.parallel_for(image_size, ConvolveKernel(d_input, d_aux, window_mean_array_d[1])).wait();
             for (int i = 2; i <= dimensions; ++i)

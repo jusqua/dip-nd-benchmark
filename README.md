@@ -6,7 +6,7 @@
 - AdaptiveCpp Compiler
 - CUDA Compiler
 - MATLAB
-- [this specific version of the VisionGL](https://github.com/jusqua/visiongl/archive/83bb5314a4ff9ff487fdc6328caebf7505f3db66.tar.gz)
+- [VisionGL v0.2](https://github.com/jusqua/visiongl)
 - libtiff
 
 ## Usage

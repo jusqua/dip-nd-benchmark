@@ -75,8 +75,7 @@ def main():
                         )
 
     for operator, tech_map in single_results_map.items():
-        fig, _ = plot.subplots(figsize=(8, 6))
-        fig.add_subplot(111)
+        _, ax = plot.subplots(figsize=(8, 6))
 
         result_lines = []
         line_titles = []
@@ -97,13 +96,13 @@ def main():
             result_lines.append(plot.plot(dimensions, results, color=color, marker="o"))
             line_titles.append(tech_name_map[tech])
 
-        plot.xlabel("Image Dimension", fontsize="large")
-        plot.ylabel("Time (μs)", fontsize="large")
-        plot.yscale("log")
-        plot.xticks(dimensions, dimensions_label)
-        plot.grid(True, axis="both")
+        ax.set_xlabel("Image Dimension", fontsize="large")
+        ax.set_ylabel("Time (μs)", fontsize="large")
+        ax.set_yscale("log")
+        ax.set_xticks(dimensions, dimensions_label)
+        ax.grid(True, axis="both")
 
-        plot.legend(
+        ax.legend(
             [x[0] for x in result_lines],
             line_titles,
             bbox_to_anchor=(0, 1.02, 1, 0.2),
@@ -118,7 +117,7 @@ def main():
         plot.close()
 
     for group, results_map in group_results_map.items():
-        fig, ax = plot.subplots(figsize=(14, 7))
+        _, ax = plot.subplots(figsize=(14, 7))
 
         operators = list(results_map.keys())
         technologies = set()

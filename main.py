@@ -63,14 +63,16 @@ def main():
                         if group_results_map[row[2]][row[0]].get(tech) is None:
                             group_results_map[row[2]][row[0]][tech] = []
                         group_results_map[row[2]][row[0]][tech].append(
-                            float(row[-1]) * 1000
+                            float(row[-1]) * 1000000
                         )
                     if row[1] == "single":
                         if single_results_map.get(row[0]) is None:
                             single_results_map[row[0]] = {}
                         if single_results_map[row[0]].get(tech) is None:
                             single_results_map[row[0]][tech] = []
-                        single_results_map[row[0]][tech].append(float(row[-1]) * 1000)
+                        single_results_map[row[0]][tech].append(
+                            float(row[-1]) * 1000000
+                        )
 
     for operator, tech_map in single_results_map.items():
         fig, _ = plot.subplots(figsize=(8, 6))
@@ -96,7 +98,7 @@ def main():
             line_titles.append(tech_name_map[tech])
 
         plot.xlabel("Image Dimension", fontsize="large")
-        plot.ylabel("Time (ms)", fontsize="large")
+        plot.ylabel("Time (μs)", fontsize="large")
         plot.yscale("log")
         plot.xticks(dimensions, dimensions_label)
         plot.grid(True, axis="both")
@@ -104,13 +106,14 @@ def main():
         plot.legend(
             [x[0] for x in result_lines],
             line_titles,
-            bbox_to_anchor=(0, 1.005, 1, 0.2),
+            bbox_to_anchor=(0, 1.02, 1, 0.2),
             loc="lower left",
             mode="expand",
             borderaxespad=0,
             ncol=3,
         )
 
+        plot.tight_layout()
         plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"))
         plot.close()
 
@@ -133,7 +136,7 @@ def main():
             for operator in operators:
                 if tech in results_map[operator]:
                     avg_value = np.mean(results_map[operator][tech])
-                    values.append(avg_value)
+                    values.append(np.round(avg_value, 0))
                 else:
                     values.append(0)
 
@@ -161,7 +164,7 @@ def main():
                     ax.text(
                         bar.get_x() + bar.get_width() / 2.0,
                         height,
-                        f"{height:.4f}",
+                        f"{height:.0f}",
                         ha="center",
                         va="bottom",
                         rotation=0,
@@ -169,7 +172,7 @@ def main():
                     )
 
         ax.set_xlabel("Operations", fontsize="large", weight="bold")
-        ax.set_ylabel("Time (ms)", fontsize="large", weight="bold")
+        ax.set_ylabel("Time (μs)", fontsize="large", weight="bold")
         ax.set_xticks(x + width * (len(technologies) - 1) / 2)
         ax.set_xticklabels(operators, rotation=45, ha="right")
         ax.set_yscale("log")

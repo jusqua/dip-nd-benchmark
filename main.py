@@ -1,6 +1,7 @@
 import csv
 import os
 import random
+import re
 
 import matplotlib.pyplot as plot
 import numpy as np
@@ -24,16 +25,18 @@ def random_high_contrast_color():
 
 def main():
     color_list = [
-        "#FF1F3F",
-        "#00B2A9",
-        "#FFD700",
-        "#4B0082",
-        "#FF6F61",
-        "#00FF7F",
-        "#FF4500",
-        "#1E90FF",
+        "#00BFA0",
+        "#B3D4FF",
+        "#DC0AB4",
+        "#FFA300",
+        "#9B19F5",
+        "#E6D800",
+        "#50E991",
+        "#0BB4FF",
+        "#E60049",
     ]
 
+    tech_dimensions_map: dict[str, list[int]] = {}
     tech_name_map: dict[str, str] = {}
     tech_color_map: dict[str, str] = {}
     group_results_map: dict[str, dict[str, dict[str, list[float]]]] = {}
@@ -46,11 +49,15 @@ def main():
         with open(os.path.join(tech_path, TXT_FILENAME)) as name:
             tech_name_map[tech] = name.read().strip()
 
+        tech_dimensions_map[tech] = []
         for dimension in os.listdir(tech_path):
             results_path = os.path.join(tech_path, dimension)
             if not os.path.isdir(results_path):
                 continue
 
+            tech_dimensions_map[tech].append(
+                (int("".join(filter(str.isdigit, dimension))))
+            )
             with open(os.path.join(results_path, CSV_FILENAME)) as results:
                 reader = csv.reader(results)
                 next(reader)
@@ -79,21 +86,16 @@ def main():
 
         result_lines = []
         line_titles = []
-        dimensions = []
-        dimensions_label = []
+        dimensions = (1, 2, 3, 4, 5)
+        dimensions_label = ("1D", "2D", "3D", "4D", "5D")
 
         for tech, results in tech_map.items():
             color = tech_color_map.get(tech)
-            if not dimensions:
-                dimensions = range(1, len(results) + 1)
-                dimensions_label = [f"{i}D" for i in dimensions]
             if color is None:
-                color = tech_color_map[tech] = (
-                    color_list.pop(random.randint(0, len(color_list) - 1))
-                    if color_list
-                    else "#000000"
-                )
-            result_lines.append(plot.plot(dimensions, results, color=color, marker="o"))
+                color = tech_color_map[tech] = color_list.pop()
+            result_lines.append(
+                plot.plot(tech_dimensions_map[tech], results, color=color, marker="o")
+            )
             line_titles.append(tech_name_map[tech])
 
         ax.set_xlabel("Image Dimension", fontsize="large")
@@ -132,11 +134,7 @@ def main():
 
             color = tech_color_map.get(tech)
             if color is None:
-                color = tech_color_map[tech] = (
-                    color_list.pop(random.randint(0, len(color_list) - 1))
-                    if color_list
-                    else "#000000"
-                )
+                color = tech_color_map[tech] = color_list.pop()
 
             bars = ax.bar(
                 x + idx * width,

@@ -139,7 +139,7 @@ public:
     }
 };
 
-void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, char const*)> save_image)
+void benchmark(VglImage* image, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, char const*)> save_image)
 {
     sycl::queue q;
 

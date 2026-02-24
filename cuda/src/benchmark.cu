@@ -114,7 +114,7 @@ static inline Window* copyWindowStructToDevice(float* d_data, int* d_shape, int*
     return d_ptr;
 }
 
-void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, char const*)> save_image)
+void benchmark(VglImage* image, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, char const*)> save_image)
 {
     auto dimensions = image->ndim;
     VglImage* output = vglCreateImage(image);

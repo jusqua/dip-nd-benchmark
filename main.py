@@ -100,20 +100,11 @@ def main():
         ax.set_ylabel("Time (μs)", fontsize="large")
         ax.set_yscale("log")
         ax.set_xticks(dimensions, dimensions_label)
-        ax.grid(True, axis="both")
+        ax.grid(True, axis="both", alpha=0.3)
 
-        ax.legend(
-            [x[0] for x in result_lines],
-            line_titles,
-            bbox_to_anchor=(0, 1.02, 1, 0.2),
-            loc="lower left",
-            mode="expand",
-            borderaxespad=0,
-            ncol=3,
-        )
+        ax.legend([x[0] for x in result_lines], line_titles)
 
-        plot.tight_layout()
-        plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"))
+        plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"), bbox_inches="tight")
         plot.close()
 
     for group, results_map in group_results_map.items():
@@ -176,20 +167,11 @@ def main():
         ax.set_xticklabels(operators, rotation=45, ha="right")
         ax.set_yscale("log")
         ax.grid(True, axis="y", alpha=0.3)
-
-        ax.legend(
-            bbox_to_anchor=(0, 1.02, 1, 0.2),
-            loc="lower left",
-            mode="expand",
-            borderaxespad=0,
-            ncol=3,
-        )
+        ax.legend()
 
         plot.tight_layout()
         plot.savefig(
-            os.path.join(OUTPUT_DIR, f"{group}-group.png"),
-            dpi=300,
-            bbox_inches="tight",
+            os.path.join(OUTPUT_DIR, f"{group}-group.png"), bbox_inches="tight"
         )
         plot.close()
 

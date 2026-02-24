@@ -9,12 +9,9 @@
 
 int main(int argc, char** argv)
 {
-    auto usage = "Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> [<d1> <d2> ... <dN>]\n"
-                 "This program reads a stack of image files and saves the results after benchmarking some operations.\n"
-                 "Both input and output files require a printf-like integer format specifier (%d) which will be replaced by the integers from index 0 to index N\n"
-                 "Optionally it's possible to define an alternative geometry to the image by adding the dimension sizes after the output folder as follows.\n";
+    auto usage = "Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> <prefer ND operator> [<d1> <d2> ... <dN>]\n";
 
-    constexpr int ARGD1 = 6;
+    constexpr int ARGD1 = 7;
 
     if (argc < ARGD1) {
         printf("%s", usage);
@@ -26,6 +23,7 @@ int main(int argc, char** argv)
     int iN = atoi(argv[3]);
     int rounds = atoi(argv[4]);
     char* outpath = argv[5];
+    bool prefer_nd_operator = atoi(argv[6]);
 
     int shape[VGL_ARR_SHAPE_SIZE] = { 0 };
     int ndim = 3;
@@ -50,7 +48,7 @@ int main(int argc, char** argv)
 
     VglImage* input = vglLoadNdImage(inpath, i0, iN, shape, ndim);
 
-    benchmark(input, rounds, [&](VglImage* image, char const* operation) {
+    benchmark(input, rounds, prefer_nd_operator, [&](VglImage* image, char const* operation) {
         vglCheckContext(image, VGL_RAM_CONTEXT);
         if (ndim <= 2)
             vglReshape(image, originalVglShape);

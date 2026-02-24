@@ -41,18 +41,15 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     gpuImageStack = gpuArray(uint8(reshapedData));
     gpuDev = gpuDevice();
 
-    curShape = repmat(3, 1, numDims);
-    if numDims == 1, curShape = [1, 3]; end
-    seMean = ones(curShape) / (3^numDims);
-
-    % No ND structuring element for dilation and erosion :P
-    seCube = true(3, 3);
-    seCross = [0, 1, 0; 1, 1, 1; 0, 1, 0];
     seCubeSep = cell(1, numDims);
     baseValue = ones(1, 3);
     for i = 1:numDims
         seCubeSep{i} = reshape(baseValue, [3, 1]);
     end
+    seCube = true(3, 3);
+    if numDims == 1, seCube = seCubeSep{1}; end
+    seCross = [0, 1, 0; 1, 1, 1; 0, 1, 0];
+    if numDims == 1, seCross = seCubeSep{1}; end
 
     seMeanSep = cell(1, numDims);
     baseValue = ones(1, 3) / 3;
@@ -65,6 +62,10 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
             seMeanSep{i} = reshape(baseValue, curShape);
         end
     end
+
+    curShape = repmat(3, 1, numDims);
+    seMean = ones(curShape) / (3^numDims);
+    if numDims == 1, seMean = seMeanSep{1}; end
 
     thresholdLevel = 128;
 

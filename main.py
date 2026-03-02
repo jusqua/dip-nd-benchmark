@@ -106,7 +106,6 @@ def main():
             )
             line_titles.append(tech_name_map[tech])
 
-        ax.set_xlabel("Image Dimension", fontsize=14, weight="bold")
         ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")
         ax.set_yscale("log")
         ax.tick_params(axis="y", labelsize=12)
@@ -131,6 +130,7 @@ def main():
         width = 0.8 / len(technologies)
 
         bar_containers = []
+        lowest_bar_height = float("inf")
 
         for idx, tech in enumerate(technologies):
             values = []
@@ -154,24 +154,30 @@ def main():
                 alpha=0.8,
             )
             bar_containers.append(bars)
+            for bar in bars:
+                height = bar.get_height()
+                if height < lowest_bar_height:
+                    lowest_bar_height = height
 
+        for bars in bar_containers:
             for bar in bars:
                 height = bar.get_height()
                 if height > 0:
                     ax.text(
                         bar.get_x() + bar.get_width() / 2.0,
-                        height,
+                        lowest_bar_height + (lowest_bar_height * 0.1),
                         f"{height:.0f}",
                         ha="center",
                         va="bottom",
-                        rotation=0,
+                        weight="bold",
+                        rotation=90,
                         fontsize=12,
                     )
 
         ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")
         ax.set_xticks(
             x + width * (len(technologies) - 1) / 2,
-            operators,
+            [operator.title() for operator in operators],
             fontsize=14,
             weight="bold",
         )

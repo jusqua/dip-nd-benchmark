@@ -46,10 +46,18 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     for i = 1:numDims
         seCubeSep{i} = reshape(baseValue, [3, 1]);
     end
-    seCube = true(3, 3);
-    if numDims == 1, seCube = seCubeSep{1}; end
-    seCross = [0, 1, 0; 1, 1, 1; 0, 1, 0];
-    if numDims == 1, seCross = seCubeSep{1}; end
+    if numDims == 1
+        seCube = seCubeSep{1};
+    elseif numDims == 2
+        seCube = strel('square', 3);
+    else % numDims == 3
+        seCube = strel('cube', 3);
+    end
+    if numDims == 1
+        seCross = seCubeSep{1};
+    else % numDims == 2
+        seCross = strel('diamond', 1);
+    end
 
     seMeanSep = cell(1, numDims);
     baseValue = ones(1, 3) / 3;
@@ -91,13 +99,17 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
         @() imcomplement(gpuImageStack), ...
         @(name) save_invert(gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
-    builder.attach('erode-cross', 'single', '', ...
-        @() imerode(gpuImageStack, seCross), ...
-        @(name) save_erode_cross(gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
-
-    builder.attach('erode-cube', 'single', '', ...
-        @() imerode(gpuImageStack, seCube), ...
-        @(name) save_erode_cube(gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+    if numDims < 3
+        builder.attach('erode-cross', 'single', '', ...
+            @() imerode(gpuImageStack, seCross), ...
+            @(name) save_erode_cross(gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+    end
+    
+    if numDims < 4
+        builder.attach('erode-cube', 'single', '', ...
+            @() imerode(gpuImageStack, seCube), ...
+            @(name) save_erode_cube(gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+    end
 
     builder.attach('split-erode-cube', 'single', '', ...
         @() perform_split_erode_cube(gpuImageStack, seCubeSep, numDims), ...

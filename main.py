@@ -1,3 +1,4 @@
+import json
 import csv
 import os
 import random
@@ -36,7 +37,7 @@ def main():
         "#E60049",
     ]
 
-    tech_dimensions_map: dict[str, list[int]] = {}
+    tech_results_dimensions_map: dict[str, dict[str, list[int]]] = {}
     tech_name_map: dict[str, str] = {}
     tech_color_map: dict[str, str] = {}
     group_results_map: dict[str, dict[str, dict[str, list[float]]]] = {}
@@ -49,19 +50,21 @@ def main():
         with open(os.path.join(tech_path, TXT_FILENAME)) as name:
             tech_name_map[tech] = name.read().strip()
 
-        tech_dimensions_map[tech] = []
+        tech_results_dimensions_map[tech] = {}
         for dimension in os.listdir(tech_path):
             results_path = os.path.join(tech_path, dimension)
             if not os.path.isdir(results_path):
                 continue
 
-            tech_dimensions_map[tech].append(
-                (int("".join(filter(str.isdigit, dimension))))
-            )
+            current_dimension = int("".join(filter(str.isdigit, dimension)))
             with open(os.path.join(results_path, CSV_FILENAME)) as results:
                 reader = csv.reader(results)
                 next(reader)
                 for row in reader:
+                    if tech_results_dimensions_map[tech].get(row[0]) is None:
+                        tech_results_dimensions_map[tech][row[0]] = []
+                    tech_results_dimensions_map[tech][row[0]].append(current_dimension)
+
                     if row[1] == "group":
                         if group_results_map.get(row[2]) is None:
                             group_results_map[row[2]] = {}
@@ -94,14 +97,20 @@ def main():
             if color is None:
                 color = tech_color_map[tech] = color_list.pop()
             result_lines.append(
-                plot.plot(tech_dimensions_map[tech], results, color=color, marker="o")
+                plot.plot(
+                    tech_results_dimensions_map[tech][operator],
+                    results,
+                    color=color,
+                    marker="o",
+                )
             )
             line_titles.append(tech_name_map[tech])
 
-        ax.set_xlabel("Image Dimension", fontsize="large")
-        ax.set_ylabel("Time (μs)", fontsize="large")
+        ax.set_xlabel("Image Dimension", fontsize=14, weight="bold")
+        ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")
         ax.set_yscale("log")
-        ax.set_xticks(dimensions, dimensions_label)
+        ax.tick_params(axis="y", labelsize=12)
+        ax.set_xticks(dimensions, dimensions_label, fontsize=12)
         ax.grid(True, axis="both", alpha=0.3)
 
         ax.legend([x[0] for x in result_lines], line_titles)
@@ -156,14 +165,18 @@ def main():
                         ha="center",
                         va="bottom",
                         rotation=0,
-                        fontsize=9,
+                        fontsize=12,
                     )
 
-        ax.set_xlabel("Operations", fontsize="large", weight="bold")
-        ax.set_ylabel("Time (μs)", fontsize="large", weight="bold")
-        ax.set_xticks(x + width * (len(technologies) - 1) / 2)
-        ax.set_xticklabels(operators, rotation=45, ha="right")
+        ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")
+        ax.set_xticks(
+            x + width * (len(technologies) - 1) / 2,
+            operators,
+            fontsize=14,
+            weight="bold",
+        )
         ax.set_yscale("log")
+        ax.tick_params(axis="y", labelsize=12)
         ax.grid(True, axis="y", alpha=0.3)
         ax.legend()
 

@@ -6,7 +6,7 @@
 
 #include <utils.hpp>
 
-__global__ void invertKernel(Image const* input, Image* output)
+__global__ void invert_kernel(Image const* input, Image* output)
 {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= input->size)
@@ -14,7 +14,7 @@ __global__ void invertKernel(Image const* input, Image* output)
     output->data[i] = 255 - input->data[i];
 }
 
-__global__ void thresholdKernel(Image const* input, Image* output, uint8_t threshold, uint8_t max_value)
+__global__ void threshold_kernel(Image const* input, Image* output, uint8_t threshold, uint8_t max_value)
 {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= input->size)
@@ -23,7 +23,7 @@ __global__ void thresholdKernel(Image const* input, Image* output, uint8_t thres
 }
 
 template<typename Func = std::function<void(size_t, size_t)>>
-__device__ void windowMap(Image* input, Window* window, size_t const index, Func&& func)
+__device__ void window_map(Image* input, Window* window, size_t const index, Func&& func)
 {
     int image_coord[VGL_ARR_SHAPE_SIZE];
     int window_coord[VGL_ARR_SHAPE_SIZE];
@@ -66,14 +66,14 @@ __device__ void windowMap(Image* input, Window* window, size_t const index, Func
     }
 }
 
-__global__ void erodeKernel(Image* input, Image* output, Window* window)
+__global__ void erode_kernel(Image* input, Image* output, Window* window)
 {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= input->size)
         return;
 
     uint8_t pmin = 255;
-    windowMap(input, window, i, [&](auto image_index, auto _) {
+    window_map(input, window, i, [&](auto image_index, auto _) {
         uint8_t v = input->data[image_index];
         if (v < pmin)
             pmin = v;
@@ -82,259 +82,289 @@ __global__ void erodeKernel(Image* input, Image* output, Window* window)
     output->data[i] = pmin;
 }
 
-__global__ void convolveKernel(Image* input, Image* output, Window* window)
+__global__ void convolve_kernel(Image* input, Image* output, Window* window)
 {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= input->size)
         return;
 
     float result = 0.0f;
-    windowMap(input, window, i, [&](auto image_index, auto window_index) {
+    window_map(input, window, i, [&](auto image_index, auto window_index) {
         result += input->data[image_index] * window->data[window_index];
     });
 
     output->data[i] = (uint8_t)result;
 }
 
-static inline Image* copyImageStructToDevice(uint8_t* d_data, int* d_shape, int* d_offset, uint8_t dimensions, size_t size)
+DeviceImage* image_similar_device_from_host(Image* image)
 {
-    Image h = Image(d_data, d_shape, d_offset, dimensions, size);
-    Image* d_ptr = nullptr;
-    cudaMalloc(&d_ptr, sizeof(Image));
-    cudaMemcpy(d_ptr, &h, sizeof(Image), cudaMemcpyHostToDevice);
-    return d_ptr;
+    auto d_image = new DeviceImage();
+    auto tmp_image = Image();
+    cudaMalloc(&d_image->self, sizeof(Image));
+
+    cudaMalloc(&d_image->data, image->size);
+    tmp_image.data = d_image->data;
+
+    cudaMalloc(&d_image->shape, image->dimensions * sizeof(int));
+    cudaMemcpy(d_image->shape, image->shape, image->dimensions * sizeof(int), cudaMemcpyHostToDevice);
+    tmp_image.shape = d_image->shape;
+
+    cudaMalloc(&d_image->offset, image->dimensions * sizeof(int));
+    cudaMemcpy(d_image->offset, image->offset, image->dimensions * sizeof(int), cudaMemcpyHostToDevice);
+    tmp_image.offset = d_image->offset;
+
+    d_image->dimensions = image->dimensions;
+    tmp_image.dimensions = d_image->dimensions;
+    d_image->size = image->size;
+    tmp_image.size = d_image->size;
+
+    cudaMemcpy(d_image->self, &tmp_image, sizeof(Image), cudaMemcpyHostToDevice);
+
+    return d_image;
 }
 
-static inline Window* copyWindowStructToDevice(float* d_data, int* d_shape, int* d_offset, uint8_t dimensions, size_t size)
+DeviceImage* image_device_from_host(Image* image)
 {
-    Window h = Window(d_data, d_shape, d_offset, dimensions, size);
-    Window* d_ptr = nullptr;
-    cudaMalloc(&d_ptr, sizeof(Window));
-    cudaMemcpy(d_ptr, &h, sizeof(Window), cudaMemcpyHostToDevice);
-    return d_ptr;
+    auto d_image = image_similar_device_from_host(image);
+
+    cudaMemcpy(d_image->data, image->data, image->size, cudaMemcpyHostToDevice);
+
+    return d_image;
 }
 
-void benchmark(VglImage* image, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, char const*)> save_image)
+DeviceImage* image_device_convert_from_host(Image* image)
 {
-    auto dimensions = image->ndim;
-    VglImage* output = vglCreateImage(image);
-    VglImage* tmp = vglCreateImage(image);
+    auto d_image = image_device_from_host(image);
 
-    VglStrEl* strel_cross = new VglStrEl(VGL_STREL_CROSS, dimensions);
-    VglStrEl* strel_cube = new VglStrEl(VGL_STREL_CUBE, dimensions);
-    VglStrEl* strel_mean = new VglStrEl(VGL_STREL_MEAN, dimensions);
-    float data_cube[3] = { 1.0f, 1.0f, 1.0f };
-    float data_mean[3] = { 1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f };
-    size_t image_size = image->vglShape->size;
-    size_t dims_bytes = sizeof(int) * (dimensions + 1);
+    image_destroy(image);
 
-    int* d_shape = nullptr;
-    int* d_offset = nullptr;
-    cudaMalloc(&d_shape, dims_bytes);
-    cudaMalloc(&d_offset, dims_bytes);
-    cudaMemcpy(d_shape, image->vglShape->shape, dims_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_offset, image->vglShape->offset, dims_bytes, cudaMemcpyHostToDevice);
+    return d_image;
+}
 
-    uint8_t* d_input_data = nullptr;
-    uint8_t* d_output_data = nullptr;
-    uint8_t* d_aux_data = nullptr;
-    cudaMalloc(&d_input_data, image_size);
-    cudaMalloc(&d_output_data, image_size);
-    cudaMalloc(&d_aux_data, image_size);
+void image_destroy_device(DeviceImage* d_image)
+{
+    cudaFree(d_image->data);
+    cudaFree(d_image->shape);
+    cudaFree(d_image->offset);
+    cudaFree(d_image->self);
+    delete d_image;
+}
 
-    cudaMemcpy(d_input_data, image->getImageData(), image_size, cudaMemcpyHostToDevice);
+DeviceWindow* window_similar_device_from_host(Window* window)
+{
+    auto d_window = new DeviceWindow();
+    auto tmp_window = Window();
+    cudaMalloc(&d_window->self, sizeof(Window));
 
-    Image* d_input_img = copyImageStructToDevice(d_input_data, d_shape, d_offset, dimensions, image_size);
-    Image* d_output_img = copyImageStructToDevice(d_output_data, d_shape, d_offset, dimensions, image_size);
-    Image* d_aux_img = copyImageStructToDevice(d_aux_data, d_shape, d_offset, dimensions, image_size);
+    cudaMalloc(&d_window->data, window->size * sizeof(float));
+    tmp_window.data = d_window->data;
 
-    size_t window_elements = strel_cross->vglShape->size;
-    float* d_window_cross_data = nullptr;
-    float* d_window_cube_data = nullptr;
-    float* d_window_mean_data = nullptr;
-    cudaMalloc(&d_window_cross_data, window_elements * sizeof(float));
-    cudaMalloc(&d_window_cube_data, window_elements * sizeof(float));
-    cudaMalloc(&d_window_mean_data, window_elements * sizeof(float));
+    cudaMalloc(&d_window->shape, window->dimensions * sizeof(int));
+    cudaMemcpy(d_window->shape, window->shape, window->dimensions * sizeof(int), cudaMemcpyHostToDevice);
+    tmp_window.shape = d_window->shape;
 
-    int* d_window_shape = nullptr;
-    int* d_window_offset = nullptr;
-    cudaMalloc(&d_window_shape, dims_bytes);
-    cudaMalloc(&d_window_offset, dims_bytes);
+    cudaMalloc(&d_window->offset, window->dimensions * sizeof(int));
+    cudaMemcpy(d_window->offset, window->offset, window->dimensions * sizeof(int), cudaMemcpyHostToDevice);
+    tmp_window.offset = d_window->offset;
 
-    cudaMemcpy(d_window_cross_data, strel_cross->data, window_elements * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_window_cube_data, strel_cube->data, window_elements * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_window_mean_data, strel_mean->data, window_elements * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_window_shape, strel_mean->vglShape->shape, dims_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_window_offset, strel_mean->vglShape->offset, dims_bytes, cudaMemcpyHostToDevice);
+    d_window->dimensions = window->dimensions;
+    tmp_window.dimensions = d_window->dimensions;
+    d_window->size = window->size;
+    tmp_window.size = d_window->size;
 
-    Window* d_window_cross = copyWindowStructToDevice(d_window_cross_data, d_window_shape, d_window_offset, dimensions, window_elements);
-    Window* d_window_cube = copyWindowStructToDevice(d_window_cube_data, d_window_shape, d_window_offset, dimensions, window_elements);
-    Window* d_window_mean = copyWindowStructToDevice(d_window_mean_data, d_window_shape, d_window_offset, dimensions, window_elements);
+    cudaMemcpy(d_window->self, &tmp_window, sizeof(Window), cudaMemcpyHostToDevice);
 
-    std::array<Window*, VGL_ARR_SHAPE_SIZE> d_window_cube_array;
-    std::array<Window*, VGL_ARR_SHAPE_SIZE> d_window_mean_array;
-    size_t window_linear_elements = 3;
-    float* d_window_cube_linear_data = nullptr;
-    float* d_window_mean_linear_data = nullptr;
-    cudaMalloc(&d_window_cube_linear_data, window_linear_elements * sizeof(float));
-    cudaMalloc(&d_window_mean_linear_data, window_linear_elements * sizeof(float));
-    cudaMemcpy(d_window_cube_linear_data, data_cube, window_linear_elements * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_window_mean_linear_data, data_mean, window_linear_elements * sizeof(float), cudaMemcpyHostToDevice);
+    return d_window;
+}
 
-    int window_linear_shape[VGL_ARR_SHAPE_SIZE];
-    for (int i = 0; i < VGL_ARR_SHAPE_SIZE; ++i)
-        window_linear_shape[i] = 1;
+DeviceWindow* window_device_from_host(Window* window)
+{
+    auto d_window = window_similar_device_from_host(window);
 
-    for (int i = 1; i <= dimensions; ++i) {
-        window_linear_shape[i] = 3;
-        auto vgl_shape = new VglShape(window_linear_shape, dimensions);
+    cudaMemcpy(d_window->data, window->data, window->size * sizeof(float), cudaMemcpyHostToDevice);
 
-        int* d_wshape = nullptr;
-        int* d_woffset = nullptr;
-        cudaMalloc(&d_wshape, dims_bytes);
-        cudaMalloc(&d_woffset, dims_bytes);
-        cudaMemcpy(d_wshape, vgl_shape->shape, dims_bytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_woffset, vgl_shape->offset, dims_bytes, cudaMemcpyHostToDevice);
+    return d_window;
+}
 
-        d_window_cube_array[i] = copyWindowStructToDevice(d_window_cube_linear_data, d_wshape, d_woffset, dimensions, window_linear_elements);
-        d_window_mean_array[i] = copyWindowStructToDevice(d_window_mean_linear_data, d_wshape, d_woffset, dimensions, window_linear_elements);
+DeviceWindow* window_device_convert_from_host(Window* window)
+{
+    auto d_window = window_device_from_host(window);
 
-        delete vgl_shape;
-        window_linear_shape[i] = 1;
+    window_destroy(window);
+
+    return d_window;
+}
+
+void window_destroy_device(DeviceWindow* d_window)
+{
+    cudaFree(d_window->data);
+    cudaFree(d_window->shape);
+    cudaFree(d_window->offset);
+    cudaFree(d_window->self);
+    delete d_window;
+}
+
+void benchmark(VglImage* vglimage, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
+{
+    auto image = image_from_vglimage(vglimage);
+    auto dimensions = image->dimensions;
+
+    auto const THREADS_PER_BLOCK = 256;
+    auto const BLOCKS = (int)((image->size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
+
+    auto d_input = image_device_from_host(image);
+    auto d_output = image_similar_device_from_host(image);
+    auto d_temp = image_similar_device_from_host(image);
+
+    auto d_cross_window = window_device_convert_from_host(window_create_from_type(WindowType::CROSS, dimensions));
+    auto d_cube_window = window_device_convert_from_host(window_create_from_type(WindowType::CUBE, dimensions));
+    auto d_mean_window = window_device_convert_from_host(window_create_from_type(WindowType::MEAN, dimensions));
+
+    auto d_cube_window_array = new DeviceWindow*[dimensions + 1];
+    auto d_mean_window_array = new DeviceWindow*[dimensions + 1];
+    {
+        auto cube_window_1d = window_create_from_type(WindowType::CUBE, 1);
+        auto mean_window_1d = window_create_from_type(WindowType::MEAN, 1);
+
+        for (int i = 1; i <= dimensions; ++i) {
+            cube_window_1d->shape[i] = 3;
+            mean_window_1d->shape[i] = 3;
+
+            d_cube_window_array[i] = window_device_from_host(cube_window_1d);
+            d_mean_window_array[i] = window_device_from_host(mean_window_1d);
+
+            cube_window_1d->shape[i] = 1;
+            mean_window_1d->shape[i] = 1;
+        }
+
+        window_destroy(cube_window_1d);
+        window_destroy(mean_window_1d);
     }
 
     auto save_sample = [&](std::string name) {
-        cudaMemcpy(tmp->getImageData(), d_output_data, image_size, cudaMemcpyDeviceToHost);
-        save_image(tmp, name.c_str());
+        cudaMemcpy(vglimage->getImageData(), d_output->data, image->size, cudaMemcpyDeviceToHost);
+        save_image(vglimage, name);
     };
 
-    int const threadsPerBlock = 256;
-    int const blocks = (int)((image_size + threadsPerBlock - 1) / threadsPerBlock);
-
     auto builder = BenchmarkBuilder();
-    builder.attach({ .name = "upload",
+    builder.attach({
+        .name = "upload",
         .type = "group",
         .group = "memory",
-        .func = [&] {
-            cudaMemcpy(d_input_data, image->getImageData(), image_size, cudaMemcpyHostToDevice);
-        } });
-    builder.attach({ .name = "download",
+        .func = [&] { cudaMemcpy(d_input->data, image->data, image->size, cudaMemcpyHostToDevice); },
+    });
+    builder.attach({
+        .name = "download",
         .type = "group",
         .group = "memory",
-        .func = [&] {
-            cudaMemcpy(tmp->getImageData(), d_input_data, image_size, cudaMemcpyDeviceToHost);
-        } });
-    builder.attach({ .name = "copy",
+        .func = [&] { cudaMemcpy(image->data, d_output->data, image->size, cudaMemcpyDeviceToHost); },
+    });
+    builder.attach({
+        .name = "copy",
         .type = "group",
         .group = "memory",
-        .func = [&] {
-            cudaMemcpy(d_output_data, d_input_data, image_size, cudaMemcpyDeviceToDevice);
-        },
-        .post = save_sample });
-    builder.attach({ .name = "invert",
+        .post = save_sample,
+        .func = [&] { cudaMemcpy(d_output->data, d_input->data, image->size, cudaMemcpyDeviceToDevice); },
+    });
+    builder.attach({
+        .name = "invert",
         .type = "group",
         .group = "point",
+        .post = save_sample,
         .func = [&] {
-            invertKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img);
+            invert_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_input->self);
             cudaDeviceSynchronize();
         },
-        .post = save_sample });
-    builder.attach({ .name = "threshold",
+    });
+    builder.attach({
+        .name = "threshold",
         .type = "group",
         .group = "point",
+        .post = save_sample,
         .func = [&] {
-            thresholdKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, 128, 255);
+            threshold_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_output->self, 128, 255);
             cudaDeviceSynchronize();
         },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cube",
+    });
+    builder.attach({
+        .name = "erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_cube);
+            erode_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_output->self, d_cube_window->self);
             cudaDeviceSynchronize();
         },
-        .post = save_sample });
-    builder.attach({ .name = "split-erode-cube",
+    });
+    builder.attach({
+        .name = "split-erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_aux_img, d_window_cube_array[1]);
+            erode_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_temp->self, d_cube_window_array[1]->self);
             cudaDeviceSynchronize();
             for (int i = 2; i <= dimensions; ++i) {
                 if (i & 0b1) {
-                    erodeKernel<<<blocks, threadsPerBlock>>>(d_output_img, d_aux_img, d_window_cube_array[i]);
+                    erode_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_output->self, d_temp->self, d_cube_window_array[i]->self);
                 } else {
-                    erodeKernel<<<blocks, threadsPerBlock>>>(d_aux_img, d_output_img, d_window_cube_array[i]);
+                    erode_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_temp->self, d_output->self, d_cube_window_array[i]->self);
                 }
                 cudaDeviceSynchronize();
             }
             if (dimensions & 0b1) {
-                cudaMemcpy(d_output_data, d_aux_data, image_size, cudaMemcpyDeviceToDevice);
+                cudaMemcpy(d_output->data, d_temp->data, image->size, cudaMemcpyDeviceToDevice);
             }
         },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cross",
+    });
+    builder.attach({
+        .name = "erode-cross",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            erodeKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_cross);
+            erode_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_output->self, d_cross_window->self);
             cudaDeviceSynchronize();
         },
-        .post = save_sample });
-    builder.attach({ .name = "convolve",
+    });
+    builder.attach({
+        .name = "convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            convolveKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_output_img, d_window_mean);
+            convolve_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_output->self, d_mean_window->self);
             cudaDeviceSynchronize();
         },
-        .post = save_sample });
-    builder.attach({ .name = "split-convolve",
+    });
+    builder.attach({
+        .name = "split-convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            convolveKernel<<<blocks, threadsPerBlock>>>(d_input_img, d_aux_img, d_window_mean_array[1]);
+            convolve_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_input->self, d_temp->self, d_mean_window_array[1]->self);
             cudaDeviceSynchronize();
             for (int i = 2; i <= dimensions; ++i) {
                 if (i & 0b1)
-                    convolveKernel<<<blocks, threadsPerBlock>>>(d_output_img, d_aux_img, d_window_mean_array[i]);
+                    convolve_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_output->self, d_temp->self, d_mean_window_array[i]->self);
                 else
-                    convolveKernel<<<blocks, threadsPerBlock>>>(d_aux_img, d_output_img, d_window_mean_array[i]);
+                    convolve_kernel<<<BLOCKS, THREADS_PER_BLOCK>>>(d_temp->self, d_output->self, d_mean_window_array[i]->self);
                 cudaDeviceSynchronize();
             }
             if (dimensions & 0b1) {
-                cudaMemcpy(d_output_data, d_aux_data, image_size, cudaMemcpyDeviceToDevice);
+                cudaMemcpy(d_output->data, d_temp->data, image->size, cudaMemcpyDeviceToDevice);
             }
         },
-        .post = save_sample });
-
+    });
     builder.run(rounds);
 
-    cudaFree(d_window_cross_data);
-    cudaFree(d_window_cube_data);
-    cudaFree(d_window_mean_data);
-    cudaFree(d_window_shape);
-    cudaFree(d_window_offset);
-
-    cudaFree(d_shape);
-    cudaFree(d_offset);
-    cudaFree(d_input_data);
-    cudaFree(d_output_data);
-    cudaFree(d_aux_data);
-    cudaFree(d_window_cube_linear_data);
-    cudaFree(d_window_mean_linear_data);
-
-    cudaFree(d_input_img);
-    cudaFree(d_output_img);
-    cudaFree(d_aux_img);
-
-    cudaFree(d_window_cross);
-    cudaFree(d_window_cube);
-    cudaFree(d_window_mean);
-    for (int i = 1; i <= dimensions; ++i) {
-        cudaFree(d_window_cube_array[i]);
-        cudaFree(d_window_mean_array[i]);
+    image_destroy(image);
+    image_destroy_device(d_input);
+    image_destroy_device(d_output);
+    image_destroy_device(d_temp);
+    window_destroy_device(d_cross_window);
+    window_destroy_device(d_cube_window);
+    window_destroy_device(d_mean_window);
+    for (auto i = 1; i <= dimensions; ++i) {
+        window_destroy_device(d_cube_window_array[i]);
+        window_destroy_device(d_mean_window_array[i]);
     }
-
-    delete strel_cross;
-    delete strel_cube;
-    delete strel_mean;
-    delete output;
-    delete tmp;
+    delete[] d_cube_window_array;
+    delete[] d_mean_window_array;
 }

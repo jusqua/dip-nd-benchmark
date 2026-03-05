@@ -10,6 +10,7 @@
 #include <visiongl/shape.hpp>
 
 #include <utils.hpp>
+#include <visiongl/strel.hpp>
 
 Image* image_from_vglimage(VglImage* vglimage)
 {
@@ -77,6 +78,20 @@ void window_destroy(Window* window)
     delete[] window->shape;
     delete[] window->offset;
     delete window;
+}
+
+Window* window_create_from_type(WindowType type, uint8_t dimension)
+{
+    switch (type) {
+    case WindowType::CROSS:
+        return window_from_vglstrel(new VglStrEl(VGL_STREL_CROSS, dimension));
+    case WindowType::CUBE:
+        return window_from_vglstrel(new VglStrEl(VGL_STREL_CUBE, dimension));
+    case WindowType::MEAN:
+        return window_from_vglstrel(new VglStrEl(VGL_STREL_MEAN, dimension));
+    default:
+        return new Window();
+    }
 }
 
 void BenchmarkBuilder::perform_benchmark(std::size_t rounds, BenchmarkSpec const& spec)

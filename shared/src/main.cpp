@@ -1,5 +1,6 @@
 #include <cstring>
 #include <filesystem>
+#include <iostream>
 
 #include <visiongl/context.hpp>
 #include <visiongl/image.hpp>
@@ -9,13 +10,13 @@
 
 int main(int argc, char** argv)
 {
-    auto usage = "Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> <prefer ND operator> [<d1> <d2> ... <dN>]\n";
+    auto usage = "Usage: benchmark <input pattern> <index 0> <index n> <rounds> <output folder> [<d1> <d2> ... <dN>]\n";
 
-    constexpr int ARGD1 = 7;
+    constexpr int ARGD1 = 6;
 
     if (argc < ARGD1) {
-        printf("%s", usage);
-        exit(EXIT_FAILURE);
+        std::cout << usage << "\n";
+        std::exit(EXIT_FAILURE);
     }
 
     char* inpath = argv[1];
@@ -23,7 +24,6 @@ int main(int argc, char** argv)
     int iN = atoi(argv[3]);
     int rounds = atoi(argv[4]);
     char* outpath = argv[5];
-    bool prefer_nd_operator = atoi(argv[6]);
 
     int shape[VGL_ARR_SHAPE_SIZE] = { 0 };
     int ndim = 3;
@@ -36,39 +36,39 @@ int main(int argc, char** argv)
         }
     }
 
-    char* tmppath = (char*)malloc(strlen(inpath) + 256);
+    auto tmppath = new char[strlen(outpath) + 256];
     sprintf(tmppath, inpath, i0);
-    VglImage* firstImage = vglLoadImage(tmppath);
+    auto firstImage = vglLoadImage(tmppath);
     int baseShape[VGL_ARR_SHAPE_SIZE] = { 0 };
     baseShape[VGL_SHAPE_NCHANNELS] = firstImage->getNChannels();
     baseShape[VGL_SHAPE_WIDTH] = firstImage->getWidth();
     baseShape[VGL_SHAPE_HEIGHT] = firstImage->getHeight();
     baseShape[VGL_SHAPE_LENGTH] = iN - i0 + 1;
-    VglShape* originalVglShape = new VglShape(baseShape, 3);
+    delete[] tmppath;
+    delete firstImage;
 
-    VglImage* input = vglLoadNdImage(inpath, i0, iN, shape, ndim);
+    auto vglshape = new VglShape(baseShape, 3);
+    auto vglimage = vglLoadNdImage(inpath, i0, iN, shape, ndim);
 
-    benchmark(input, rounds, prefer_nd_operator, [&](VglImage* image, std::string operation) {
-        vglCheckContext(image, VGL_RAM_CONTEXT);
+    benchmark(vglimage, rounds, [&](VglImage* output, std::string codename) {
+        vglCheckContext(output, VGL_RAM_CONTEXT);
         if (ndim <= 2)
-            vglReshape(image, originalVglShape);
+            vglReshape(output, vglshape);
 
-        auto outfilename = (char*)malloc(strlen(outpath) + 255);
-        sprintf(outfilename, "%s/%s", outpath, operation.c_str());
+        auto outfilename = new char[strlen(outpath) + 256];
+        sprintf(outfilename, "%s/%s", outpath, codename.c_str());
 
         if (!std::filesystem::exists(outfilename))
             std::filesystem::create_directories(outfilename);
 
         sprintf(outfilename, "%s/%%05d.tif", outfilename);
-        vglSaveNdImage(outfilename, image, i0);
+        vglSaveNdImage(outfilename, output, i0);
 
-        free(outfilename);
+        delete[] outfilename;
     });
 
-    delete originalVglShape;
-    delete firstImage;
-    delete input;
-    free(tmppath);
+    delete vglimage;
+    delete vglshape;
 
     return 0;
 }

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
-#include <iostream>
+
 #include <sycl/sycl.hpp>
 #include <visiongl/constants.hpp>
 #include <visiongl/image.hpp>
@@ -187,7 +187,7 @@ void image_destroy_device(DeviceImage* d_image, sycl::queue& q)
     sycl::free(d_image->shape, q);
     sycl::free(d_image->offset, q);
     sycl::free(d_image->self, q);
-    sycl::free(d_image, q);
+    delete d_image;
 }
 
 DeviceWindow* window_similar_device_from_host(Window* window, sycl::queue& q)
@@ -241,10 +241,10 @@ void window_destroy_device(DeviceWindow* d_window, sycl::queue& q)
     sycl::free(d_window->shape, q);
     sycl::free(d_window->offset, q);
     sycl::free(d_window->self, q);
-    sycl::free(d_window, q);
+    delete d_window;
 }
 
-void benchmark(VglImage* vglimage, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, std::string)> save_image)
+void benchmark(VglImage* vglimage, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
 {
     sycl::queue q;
 
@@ -255,15 +255,15 @@ void benchmark(VglImage* vglimage, size_t rounds, bool prefer_nd_operator, std::
     auto d_output = image_similar_device_from_host(image, q);
     auto d_temp = image_similar_device_from_host(image, q);
 
-    auto d_cross_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CROSS, dimensions)), q);
-    auto d_cube_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CUBE, dimensions)), q);
-    auto d_mean_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_MEAN, dimensions)), q);
+    auto d_cross_window = window_device_convert_from_host(window_create_from_type(WindowType::CROSS, dimensions), q);
+    auto d_cube_window = window_device_convert_from_host(window_create_from_type(WindowType::CUBE, dimensions), q);
+    auto d_mean_window = window_device_convert_from_host(window_create_from_type(WindowType::MEAN, dimensions), q);
 
     auto d_cube_window_array = new DeviceWindow*[dimensions + 1];
     auto d_mean_window_array = new DeviceWindow*[dimensions + 1];
     {
-        auto cube_window_1d = window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CUBE, 1));
-        auto mean_window_1d = window_convert_from_vglstrel(new VglStrEl(VGL_STREL_MEAN, 1));
+        auto cube_window_1d = window_create_from_type(WindowType::CUBE, 1);
+        auto mean_window_1d = window_create_from_type(WindowType::MEAN, 1);
 
         for (int i = 1; i <= dimensions; ++i) {
             cube_window_1d->shape[i] = 3;

@@ -37,9 +37,16 @@ struct DeviceWindow : Window {
     Window* self;
 };
 
+enum class WindowType {
+    CUBE,
+    MEAN,
+    CROSS
+};
+
 Window* window_from_vglstrel(VglStrEl* vglstrel);
 Window* window_convert_from_vglstrel(VglStrEl* vglstrel);
 void window_destroy(Window* window);
+Window* window_create_from_type(WindowType type, uint8_t dimension);
 
 struct BenchmarkSpec {
     std::string name;
@@ -60,6 +67,6 @@ public:
     void run(std::size_t rounds);
 };
 
-void benchmark(VglImage* vglimage, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, std::string)> save_image);
+void benchmark(VglImage* vglimage, size_t rounds, std::function<void(VglImage*, std::string)> save_image);
 
 #endif // DIP_ND_BENCHMARK_UTILS_HPP

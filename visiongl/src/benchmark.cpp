@@ -3,30 +3,34 @@
 #include <visiongl/cl/image.hpp>
 #include <visiongl/constants.hpp>
 #include <visiongl/context.hpp>
+#include <visiongl/image.hpp>
 #include <visiongl/shape.hpp>
 #include <visiongl/strel.hpp>
 
 #include <utils.hpp>
 
-void benchmark_nd(VglImage* image, size_t rounds, std::function<void(VglImage*, char const*)> save_image)
+#ifndef FORCE_BUFFER
+#    define FORCE_BUFFER (true)
+#endif
+
+void benchmark_nd(VglImage* input, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
 {
     vglClInit();
-    vglClForceAsBuf(image);
+    vglClForceAsBuf(input);
 
-    auto dimensions = image->ndim;
-    VglImage* output = vglCreateImage(image);
-    VglImage* tmp = vglCreateImage(image);
+    auto dimensions = input->ndim;
+    auto output = vglCreateImage(input);
+    auto tmp = vglCreateImage(input);
 
-    VglStrEl* strel_cross = new VglStrEl(VGL_STREL_CROSS, dimensions);
-    VglStrEl* strel_cube = new VglStrEl(VGL_STREL_CUBE, dimensions);
-    VglStrEl* strel_mean = new VglStrEl(VGL_STREL_MEAN, dimensions);
+    auto strel_cross = VglStrEl(VGL_STREL_CROSS, dimensions);
+    auto strel_cube = VglStrEl(VGL_STREL_CUBE, dimensions);
+    auto strel_mean = VglStrEl(VGL_STREL_MEAN, dimensions);
     VglStrEl* strel_cube_array[VGL_ARR_SHAPE_SIZE];
     VglStrEl* strel_mean_array[VGL_ARR_SHAPE_SIZE];
 
     int strelShape[VGL_ARR_SHAPE_SIZE];
-    for (int i = 0; i < VGL_ARR_SHAPE_SIZE; i++) {
+    for (int i = 0; i < VGL_ARR_SHAPE_SIZE; i++)
         strelShape[i] = 1;
-    }
 
     float data_cube[3] = { 1.0f, 1.0f, 1.0f };
     float data_mean[3] = { 1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f };
@@ -40,18 +44,17 @@ void benchmark_nd(VglImage* image, size_t rounds, std::function<void(VglImage*, 
     }
 
     auto save_sample = [&](std::string name) {
-        save_image(output, name.c_str());
+        save_image(output, name);
     };
 
     auto builder = BenchmarkBuilder();
-
     builder.attach({
         .name = "upload",
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_RAM_CONTEXT);
-            vglClUpload(image);
+            vglSetContext(input, VGL_RAM_CONTEXT);
+            vglClUpload(input);
         },
     });
     builder.attach({
@@ -59,39 +62,51 @@ void benchmark_nd(VglImage* image, size_t rounds, std::function<void(VglImage*, 
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_CL_CONTEXT);
-            vglClDownload(image);
+            vglSetContext(input, VGL_CL_CONTEXT);
+            vglClDownload(input);
         },
     });
-    builder.attach({ .name = "copy",
+    builder.attach({
+        .name = "copy",
         .type = "group",
         .group = "memory",
+        .post = save_sample,
         .func = [&] {
-            vglClNdCopy(image, output);
+            vglClNdCopy(input, output);
         },
-        .post = save_sample });
-    builder.attach({ .name = "invert",
+    });
+    builder.attach({
+        .name = "invert",
         .type = "group",
         .group = "point",
-        .func = [&] { vglClNdNot(image, output); },
-        .post = save_sample });
-    builder.attach({ .name = "threshold",
+        .post = save_sample,
+        .func = [&] { vglClNdNot(input, output); },
+    });
+    builder.attach({
+        .name = "threshold",
         .type = "group",
         .group = "point",
-        .func = [&] { vglClNdThreshold(image, output, 128, 255); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cross",
+        .post = save_sample,
+        .func = [&] { vglClNdThreshold(input, output, 128, 255); },
+    });
+    builder.attach({
+        .name = "erode-cross",
         .type = "single",
-        .func = [&] { vglClNdErode(image, output, strel_cross); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cube",
+        .post = save_sample,
+        .func = [&] { vglClNdErode(input, output, &strel_cross); },
+    });
+    builder.attach({
+        .name = "erode-cube",
         .type = "single",
-        .func = [&] { vglClNdErode(image, output, strel_cube); },
-        .post = save_sample });
-    builder.attach({ .name = "split-erode-cube",
+        .post = save_sample,
+        .func = [&] { vglClNdErode(input, output, &strel_cube); },
+    });
+    builder.attach({
+        .name = "split-erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglClNdErode(image, tmp, strel_cube_array[1]);
+            vglClNdErode(input, tmp, strel_cube_array[1]);
             for (int i = 2; i <= dimensions; ++i)
                 if (i & 0b1)
                     vglClNdErode(output, tmp, strel_cube_array[i]);
@@ -100,15 +115,19 @@ void benchmark_nd(VglImage* image, size_t rounds, std::function<void(VglImage*, 
             if (dimensions & 0b1)
                 vglClNdCopy(tmp, output);
         },
-        .post = save_sample });
-    builder.attach({ .name = "convolve",
+    });
+    builder.attach({
+        .name = "convolve",
         .type = "single",
-        .func = [&] { vglClNdConvolution(image, output, strel_mean); },
-        .post = save_sample });
-    builder.attach({ .name = "split-convolve",
+        .post = save_sample,
+        .func = [&] { vglClNdConvolution(input, output, &strel_mean); },
+    });
+    builder.attach({
+        .name = "split-convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglClNdConvolution(image, tmp, strel_mean_array[1]);
+            vglClNdConvolution(input, tmp, strel_mean_array[1]);
             for (int i = 2; i <= dimensions; ++i)
                 if (i & 0b1)
                     vglClNdConvolution(output, tmp, strel_mean_array[i]);
@@ -117,29 +136,24 @@ void benchmark_nd(VglImage* image, size_t rounds, std::function<void(VglImage*, 
             if (dimensions & 0b1)
                 vglClNdCopy(tmp, output);
         },
-        .post = save_sample });
-
+    });
     builder.run(rounds);
 
     delete output;
     delete tmp;
-    delete strel_cross;
-    delete strel_cube;
-    delete strel_mean;
-
     for (int i = 1; i <= dimensions; ++i) {
         delete strel_cube_array[i];
         delete strel_mean_array[i];
     }
 }
 
-void benchmark_2d(VglImage* image, size_t rounds, std::function<void(VglImage*, char const*)> save_image)
+void benchmark_2d(VglImage* input, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
 {
     vglClInit();
 
-    auto dimensions = image->ndim;
-    auto output = vglCreateImage(image);
-    auto tmp = vglCreateImage(image);
+    auto dimensions = input->ndim;
+    auto output = vglCreateImage(input);
+    auto tmp = vglCreateImage(input);
     auto strel_cross = VglStrEl(VGL_STREL_CROSS, dimensions);
     auto strel_cube = VglStrEl(VGL_STREL_CUBE, dimensions);
     auto strel_mean = VglStrEl(VGL_STREL_MEAN, dimensions);
@@ -147,18 +161,17 @@ void benchmark_2d(VglImage* image, size_t rounds, std::function<void(VglImage*, 
     auto strel_mean_1d = VglStrEl(VGL_STREL_MEAN, 1);
 
     auto save_sample = [&](std::string name) {
-        save_image(output, name.c_str());
+        save_image(output, name);
     };
 
     auto builder = BenchmarkBuilder();
-
     builder.attach({
         .name = "upload",
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_RAM_CONTEXT);
-            vglClUpload(image);
+            vglSetContext(input, VGL_RAM_CONTEXT);
+            vglClUpload(input);
         },
     });
     builder.attach({
@@ -166,67 +179,82 @@ void benchmark_2d(VglImage* image, size_t rounds, std::function<void(VglImage*, 
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_CL_CONTEXT);
-            vglClDownload(image);
+            vglSetContext(input, VGL_CL_CONTEXT);
+            vglClDownload(input);
         },
     });
-    builder.attach({ .name = "copy",
+    builder.attach({
+        .name = "copy",
         .type = "group",
         .group = "memory",
+        .post = save_sample,
         .func = [&] {
-            vglClCopy(image, output);
+            vglClCopy(input, output);
         },
-        .post = save_sample });
-    builder.attach({ .name = "invert",
+    });
+    builder.attach({
+        .name = "invert",
         .type = "group",
         .group = "point",
-        .func = [&] { vglClInvert(image, output); },
-        .post = save_sample });
-    builder.attach({ .name = "threshold",
+        .post = save_sample,
+        .func = [&] { vglClInvert(input, output); },
+    });
+    builder.attach({
+        .name = "threshold",
         .type = "group",
         .group = "point",
-        .func = [&] { vglClThreshold(image, output, 0.5, 1); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cross",
+        .post = save_sample,
+        .func = [&] { vglClThreshold(input, output, 0.5, 1); },
+    });
+    builder.attach({
+        .name = "erode-cross",
         .type = "single",
-        .func = [&] { vglClErode(image, output, strel_cross.getData(), strel_cross.getShape()[VGL_SHAPE_WIDTH], strel_cross.getShape()[VGL_SHAPE_HEIGHT]); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cube",
+        .post = save_sample,
+        .func = [&] { vglClErode(input, output, strel_cross.getData(), strel_cross.getShape()[VGL_SHAPE_WIDTH], strel_cross.getShape()[VGL_SHAPE_HEIGHT]); },
+    });
+    builder.attach({
+        .name = "erode-cube",
         .type = "single",
-        .func = [&] { vglClErode(image, output, strel_cube.getData(), strel_cube.getShape()[VGL_SHAPE_WIDTH], strel_cube.getShape()[VGL_SHAPE_HEIGHT]); },
-        .post = save_sample });
-    builder.attach({ .name = "split-erode-cube",
+        .post = save_sample,
+        .func = [&] { vglClErode(input, output, strel_cube.getData(), strel_cube.getShape()[VGL_SHAPE_WIDTH], strel_cube.getShape()[VGL_SHAPE_HEIGHT]); },
+    });
+    builder.attach({
+        .name = "split-erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglClErode(image, tmp, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_WIDTH], strel_cube_1d.getShape()[VGL_SHAPE_HEIGHT]);
+            vglClErode(input, tmp, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_WIDTH], strel_cube_1d.getShape()[VGL_SHAPE_HEIGHT]);
             vglClErode(tmp, output, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_HEIGHT], strel_cube_1d.getShape()[VGL_SHAPE_WIDTH]);
         },
-        .post = save_sample });
-    builder.attach({ .name = "convolve",
+    });
+    builder.attach({
+        .name = "convolve",
         .type = "single",
-        .func = [&] { vglClConvolution(image, output, strel_mean.getData(), strel_mean.getShape()[VGL_SHAPE_WIDTH], strel_mean.getShape()[VGL_SHAPE_HEIGHT]); },
-        .post = save_sample });
-    builder.attach({ .name = "split-convolve",
+        .post = save_sample,
+        .func = [&] { vglClConvolution(input, output, strel_mean.getData(), strel_mean.getShape()[VGL_SHAPE_WIDTH], strel_mean.getShape()[VGL_SHAPE_HEIGHT]); },
+    });
+    builder.attach({
+        .name = "split-convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglClConvolution(image, tmp, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_WIDTH], strel_mean_1d.getShape()[VGL_SHAPE_HEIGHT]);
+            vglClConvolution(input, tmp, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_WIDTH], strel_mean_1d.getShape()[VGL_SHAPE_HEIGHT]);
             vglClConvolution(tmp, output, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_HEIGHT], strel_mean_1d.getShape()[VGL_SHAPE_WIDTH]);
         },
-        .post = save_sample });
-
+    });
     builder.run(rounds);
 
     delete output;
     delete tmp;
 }
 
-void benchmark_3d(VglImage* image, size_t rounds, std::function<void(VglImage*, char const*)> save_image)
+void benchmark_3d(VglImage* input, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
 {
     vglClInit();
 
-    auto dimensions = image->ndim;
-    auto output = vglCreateImage(image);
-    auto tmp = vglCreateImage(image);
+    auto dimensions = input->ndim;
+    auto output = vglCreateImage(input);
+    auto tmp = vglCreateImage(input);
     auto strel_cross = VglStrEl(VGL_STREL_CROSS, dimensions);
     auto strel_cube = VglStrEl(VGL_STREL_CUBE, dimensions);
     auto strel_mean = VglStrEl(VGL_STREL_MEAN, dimensions);
@@ -234,18 +262,17 @@ void benchmark_3d(VglImage* image, size_t rounds, std::function<void(VglImage*, 
     auto strel_mean_1d = VglStrEl(VGL_STREL_MEAN, 1);
 
     auto save_sample = [&](std::string name) {
-        save_image(output, name.c_str());
+        save_image(output, name);
     };
 
     auto builder = BenchmarkBuilder();
-
     builder.attach({
         .name = "upload",
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_RAM_CONTEXT);
-            vglClUpload(image);
+            vglSetContext(input, VGL_RAM_CONTEXT);
+            vglClUpload(input);
         },
     });
     builder.attach({
@@ -253,65 +280,80 @@ void benchmark_3d(VglImage* image, size_t rounds, std::function<void(VglImage*, 
         .type = "group",
         .group = "memory",
         .func = [&] {
-            vglSetContext(image, VGL_CL_CONTEXT);
-            vglClDownload(image);
+            vglSetContext(input, VGL_CL_CONTEXT);
+            vglClDownload(input);
         },
     });
-    builder.attach({ .name = "copy",
+    builder.attach({
+        .name = "copy",
         .type = "group",
         .group = "memory",
+        .post = save_sample,
         .func = [&] {
-            vglCl3dCopy(image, output);
+            vglCl3dCopy(input, output);
         },
-        .post = save_sample });
-    builder.attach({ .name = "invert",
+    });
+    builder.attach({
+        .name = "invert",
         .type = "group",
         .group = "point",
-        .func = [&] { vglCl3dNot(image, output); },
-        .post = save_sample });
-    builder.attach({ .name = "threshold",
+        .post = save_sample,
+        .func = [&] { vglCl3dNot(input, output); },
+    });
+    builder.attach({
+        .name = "threshold",
         .type = "group",
         .group = "point",
-        .func = [&] { vglCl3dThreshold(image, output, 0.5, 1); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cross",
+        .post = save_sample,
+        .func = [&] { vglCl3dThreshold(input, output, 0.5, 1); },
+    });
+    builder.attach({
+        .name = "erode-cross",
         .type = "single",
-        .func = [&] { vglCl3dErode(image, output, strel_cross.getData(), strel_cross.getShape()[VGL_SHAPE_D1], strel_cross.getShape()[VGL_SHAPE_D2], strel_cross.getShape()[VGL_SHAPE_D3]); },
-        .post = save_sample });
-    builder.attach({ .name = "erode-cube",
+        .post = save_sample,
+        .func = [&] { vglCl3dErode(input, output, strel_cross.getData(), strel_cross.getShape()[VGL_SHAPE_D1], strel_cross.getShape()[VGL_SHAPE_D2], strel_cross.getShape()[VGL_SHAPE_D3]); },
+    });
+    builder.attach({
+        .name = "erode-cube",
         .type = "single",
-        .func = [&] { vglCl3dErode(image, output, strel_cube.getData(), strel_cube.getShape()[VGL_SHAPE_D1], strel_cube.getShape()[VGL_SHAPE_D2], strel_cube.getShape()[VGL_SHAPE_D3]); },
-        .post = save_sample });
-    builder.attach({ .name = "split-erode-cube",
+        .post = save_sample,
+        .func = [&] { vglCl3dErode(input, output, strel_cube.getData(), strel_cube.getShape()[VGL_SHAPE_D1], strel_cube.getShape()[VGL_SHAPE_D2], strel_cube.getShape()[VGL_SHAPE_D3]); },
+    });
+    builder.attach({
+        .name = "split-erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglCl3dErode(image, output, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_D1], strel_cube_1d.getShape()[VGL_SHAPE_D2], strel_cube_1d.getShape()[VGL_SHAPE_D3]);
+            vglCl3dErode(input, output, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_D1], strel_cube_1d.getShape()[VGL_SHAPE_D2], strel_cube_1d.getShape()[VGL_SHAPE_D3]);
             vglCl3dErode(output, tmp, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_D2], strel_cube_1d.getShape()[VGL_SHAPE_D1], strel_cube_1d.getShape()[VGL_SHAPE_D3]);
             vglCl3dErode(tmp, output, strel_cube_1d.getData(), strel_cube_1d.getShape()[VGL_SHAPE_D3], strel_cube_1d.getShape()[VGL_SHAPE_D2], strel_cube_1d.getShape()[VGL_SHAPE_D1]);
         },
-        .post = save_sample });
-    builder.attach({ .name = "convolve",
+    });
+    builder.attach({
+        .name = "convolve",
         .type = "single",
-        .func = [&] { vglCl3dConvolution(image, output, strel_mean.getData(), strel_mean.getShape()[VGL_SHAPE_D1], strel_mean.getShape()[VGL_SHAPE_D2], strel_mean.getShape()[VGL_SHAPE_D3]); },
-        .post = save_sample });
-    builder.attach({ .name = "split-convolve",
+        .post = save_sample,
+        .func = [&] { vglCl3dConvolution(input, output, strel_mean.getData(), strel_mean.getShape()[VGL_SHAPE_D1], strel_mean.getShape()[VGL_SHAPE_D2], strel_mean.getShape()[VGL_SHAPE_D3]); },
+    });
+    builder.attach({
+        .name = "split-convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            vglCl3dConvolution(image, output, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_D1], strel_mean_1d.getShape()[VGL_SHAPE_D2], strel_mean_1d.getShape()[VGL_SHAPE_D3]);
+            vglCl3dConvolution(input, output, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_D1], strel_mean_1d.getShape()[VGL_SHAPE_D2], strel_mean_1d.getShape()[VGL_SHAPE_D3]);
             vglCl3dConvolution(output, tmp, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_D2], strel_mean_1d.getShape()[VGL_SHAPE_D1], strel_mean_1d.getShape()[VGL_SHAPE_D3]);
             vglCl3dConvolution(tmp, output, strel_mean_1d.getData(), strel_mean_1d.getShape()[VGL_SHAPE_D3], strel_mean_1d.getShape()[VGL_SHAPE_D2], strel_mean_1d.getShape()[VGL_SHAPE_D1]);
         },
-        .post = save_sample });
-
+    });
     builder.run(rounds);
 
     delete output;
     delete tmp;
 }
 
-void benchmark(VglImage* image, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, char const*)> save_image)
+void benchmark(VglImage* image, size_t rounds, std::function<void(VglImage*, std::string)> save_image)
 {
-    if (prefer_nd_operator || image->ndim < 2 || image->ndim > 3) {
+    if (FORCE_BUFFER || image->ndim < 2 || image->ndim > 3) {
         benchmark_nd(image, rounds, save_image);
     } else if (image->ndim == 2) {
         benchmark_2d(image, rounds, save_image);

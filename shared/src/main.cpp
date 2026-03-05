@@ -48,13 +48,13 @@ int main(int argc, char** argv)
 
     VglImage* input = vglLoadNdImage(inpath, i0, iN, shape, ndim);
 
-    benchmark(input, rounds, prefer_nd_operator, [&](VglImage* image, char const* operation) {
+    benchmark(input, rounds, prefer_nd_operator, [&](VglImage* image, std::string operation) {
         vglCheckContext(image, VGL_RAM_CONTEXT);
         if (ndim <= 2)
             vglReshape(image, originalVglShape);
 
         auto outfilename = (char*)malloc(strlen(outpath) + 255);
-        sprintf(outfilename, "%s/%s", outpath, operation);
+        sprintf(outfilename, "%s/%s", outpath, operation.c_str());
 
         if (!std::filesystem::exists(outfilename))
             std::filesystem::create_directories(outfilename);

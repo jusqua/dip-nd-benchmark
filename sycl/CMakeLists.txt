@@ -3,7 +3,12 @@ cmake_minimum_required(VERSION 3.25)
 project(benchmark LANGUAGES CXX)
 
 set(SHARED_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include)
-set(SHARED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include/utils.hpp)
+set(SHARED_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../shared/src/utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../shared/include/utils.hpp
+)
+
 set(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/benchmark.cpp)
 
 find_package(visiongl CONFIG REQUIRED)

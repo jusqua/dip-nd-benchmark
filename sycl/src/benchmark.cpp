@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <functional>
+#include <iostream>
 #include <sycl/sycl.hpp>
 #include <visiongl/constants.hpp>
 #include <visiongl/image.hpp>
@@ -26,10 +27,9 @@ class InvertKernel : public Kernel {
 public:
     using Kernel::Kernel;
 
-    void operator()(sycl::id<> item) const
+    void operator()(sycl::id<> i) const
     {
-        size_t const index = item.get(0);
-        m_output->data[index] = 255 - m_input->data[index];
+        m_output->data[i] = 255 - m_input->data[i];
     }
 };
 
@@ -46,10 +46,9 @@ public:
     {
     }
 
-    void operator()(sycl::id<> item) const
+    void operator()(sycl::id<> i) const
     {
-        size_t const index = item.get(0);
-        m_output->data[index] = m_input->data[index] > m_threshold ? m_max_value : 0;
+        m_output->data[i] = m_input->data[i] > m_threshold ? m_max_value : 0;
     }
 };
 
@@ -109,16 +108,15 @@ class ErodeKernel : public WindowKernel {
 public:
     using WindowKernel::WindowKernel;
 
-    void operator()(sycl::id<> item) const
+    void operator()(sycl::id<> i) const
     {
-        size_t const index = item.get(0);
         uint8_t pmin = 255;
 
-        map(index, [&](auto image_index, auto _) {
+        map(i, [&](auto image_index, auto _) {
             pmin = sycl::min(pmin, m_input->data[image_index]);
         });
 
-        m_output->data[index] = pmin;
+        m_output->data[i] = pmin;
     }
 };
 
@@ -126,189 +124,264 @@ class ConvolveKernel : public WindowKernel {
 public:
     using WindowKernel::WindowKernel;
 
-    void operator()(sycl::id<> item) const
+    void operator()(sycl::id<> i) const
     {
-        size_t const index = item.get(0);
         float result = 0.0f;
 
-        map(index, [&](auto image_index, auto window_index) {
+        map(i, [&](auto image_index, auto window_index) {
             result += m_input->data[image_index] * m_window->data[window_index];
         });
 
-        m_output->data[index] = result;
+        m_output->data[i] = result;
     }
 };
 
-void benchmark(VglImage* image, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, char const*)> save_image)
+DeviceImage* image_similar_device_from_host(Image* image, sycl::queue& q)
+{
+    auto d_image = new DeviceImage();
+    auto tmp_image = Image();
+    d_image->self = sycl::malloc_device<Image>(1, q);
+
+    d_image->data = sycl::malloc_device<uint8_t>(image->size, q);
+    tmp_image.data = d_image->data;
+
+    d_image->shape = sycl::malloc_device<int>(image->dimensions + 1, q);
+    q.copy(image->shape, d_image->shape, image->dimensions + 1).wait();
+    tmp_image.shape = d_image->shape;
+
+    d_image->offset = sycl::malloc_device<int>(image->dimensions + 1, q);
+    q.copy(image->offset, d_image->offset, image->dimensions + 1).wait();
+    tmp_image.offset = d_image->offset;
+
+    d_image->dimensions = image->dimensions;
+    tmp_image.dimensions = d_image->dimensions;
+    d_image->size = image->size;
+    tmp_image.size = d_image->size;
+
+    q.copy(&tmp_image, d_image->self, 1).wait();
+
+    return d_image;
+}
+
+DeviceImage* image_device_from_host(Image* image, sycl::queue& q)
+{
+    auto d_image = image_similar_device_from_host(image, q);
+
+    q.copy(image->data, d_image->data, image->size).wait();
+
+    return d_image;
+}
+
+DeviceImage* image_device_convert_from_host(Image* image, sycl::queue& q)
+{
+    auto d_image = image_device_from_host(image, q);
+
+    image_destroy(image);
+
+    return d_image;
+}
+
+void image_destroy_device(DeviceImage* d_image, sycl::queue& q)
+{
+    sycl::free(d_image->data, q);
+    sycl::free(d_image->shape, q);
+    sycl::free(d_image->offset, q);
+    sycl::free(d_image->self, q);
+    sycl::free(d_image, q);
+}
+
+DeviceWindow* window_similar_device_from_host(Window* window, sycl::queue& q)
+{
+    auto d_window = new DeviceWindow();
+    auto tmp_window = Window();
+    d_window->self = sycl::malloc_device<Window>(1, q);
+
+    d_window->data = sycl::malloc_device<float>(window->size, q);
+    tmp_window.data = d_window->data;
+
+    d_window->shape = sycl::malloc_device<int>(window->dimensions + 1, q);
+    q.copy(window->shape, d_window->shape, window->dimensions + 1).wait();
+    tmp_window.shape = d_window->shape;
+
+    d_window->offset = sycl::malloc_device<int>(window->dimensions + 1, q);
+    q.copy(window->offset, d_window->offset, window->dimensions + 1).wait();
+    tmp_window.offset = d_window->offset;
+
+    d_window->dimensions = window->dimensions;
+    tmp_window.dimensions = d_window->dimensions;
+    d_window->size = window->size;
+    tmp_window.size = d_window->size;
+
+    q.copy(&tmp_window, d_window->self, 1).wait();
+
+    return d_window;
+}
+
+DeviceWindow* window_device_from_host(Window* window, sycl::queue& q)
+{
+    auto d_window = window_similar_device_from_host(window, q);
+
+    q.copy(window->data, d_window->data, window->size).wait();
+
+    return d_window;
+}
+
+DeviceWindow* window_device_convert_from_host(Window* window, sycl::queue& q)
+{
+    auto d_window = window_device_from_host(window, q);
+
+    window_destroy(window);
+
+    return d_window;
+}
+
+void window_destroy_device(DeviceWindow* d_window, sycl::queue& q)
+{
+    sycl::free(d_window->data, q);
+    sycl::free(d_window->shape, q);
+    sycl::free(d_window->offset, q);
+    sycl::free(d_window->self, q);
+    sycl::free(d_window, q);
+}
+
+void benchmark(VglImage* vglimage, size_t rounds, bool prefer_nd_operator, std::function<void(VglImage*, std::string)> save_image)
 {
     sycl::queue q;
 
-    auto tmp = vglCreateImage(image);
+    auto image = image_from_vglimage(vglimage);
+    auto dimensions = image->dimensions;
 
-    auto dimensions = image->ndim;
-    auto dimensions_size = sizeof(int) * (dimensions + 1);
-    auto d_offset = sycl::malloc_device<int>(dimensions_size, q);
-    auto d_shape = sycl::malloc_device<int>(dimensions_size, q);
+    auto d_input = image_device_from_host(image, q);
+    auto d_output = image_similar_device_from_host(image, q);
+    auto d_temp = image_similar_device_from_host(image, q);
 
-    auto image_size = image->vglShape->size;
-    auto d_input_data = sycl::malloc_device<uint8_t>(image_size, q);
-    auto d_output_data = sycl::malloc_device<uint8_t>(image_size, q);
-    auto d_aux_data = sycl::malloc_device<uint8_t>(image_size, q);
+    auto d_cross_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CROSS, dimensions)), q);
+    auto d_cube_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CUBE, dimensions)), q);
+    auto d_mean_window = window_device_convert_from_host(window_convert_from_vglstrel(new VglStrEl(VGL_STREL_MEAN, dimensions)), q);
 
-    q.memcpy(d_shape, image->vglShape->shape, dimensions_size).wait();
-    q.memcpy(d_offset, image->vglShape->offset, dimensions_size).wait();
-    q.memcpy(d_input_data, image->getImageData(), image_size).wait();
+    auto d_cube_window_array = new DeviceWindow*[dimensions + 1];
+    auto d_mean_window_array = new DeviceWindow*[dimensions + 1];
+    {
+        auto cube_window_1d = window_convert_from_vglstrel(new VglStrEl(VGL_STREL_CUBE, 1));
+        auto mean_window_1d = window_convert_from_vglstrel(new VglStrEl(VGL_STREL_MEAN, 1));
 
-    auto input = Image(d_input_data, d_shape, d_offset, dimensions, image_size);
-    auto output = Image(d_output_data, d_shape, d_offset, dimensions, image_size);
-    auto aux = Image(d_aux_data, d_shape, d_offset, dimensions, image_size);
-    auto d_input = sycl::malloc_device<Image>(sizeof(Image), q);
-    auto d_output = sycl::malloc_device<Image>(sizeof(Image), q);
-    auto d_aux = sycl::malloc_device<Image>(sizeof(Image), q);
-    q.memcpy(d_input, &input, sizeof(Image)).wait();
-    q.memcpy(d_output, &output, sizeof(Image)).wait();
-    q.memcpy(d_aux, &aux, sizeof(Image)).wait();
+        for (int i = 1; i <= dimensions; ++i) {
+            cube_window_1d->shape[i] = 3;
+            mean_window_1d->shape[i] = 3;
 
-    auto strel_cross = new VglStrEl(VGL_STREL_CROSS, dimensions);
-    auto strel_cube = new VglStrEl(VGL_STREL_CUBE, dimensions);
-    auto strel_mean = new VglStrEl(VGL_STREL_MEAN, dimensions);
-    auto window_size = strel_cross->vglShape->size * sizeof(float);
+            d_cube_window_array[i] = window_device_from_host(cube_window_1d, q);
+            d_mean_window_array[i] = window_device_from_host(mean_window_1d, q);
 
-    auto d_window_cross_data = sycl::malloc_device<float>(window_size, q);
-    auto d_window_cube_data = sycl::malloc_device<float>(window_size, q);
-    auto d_window_mean_data = sycl::malloc_device<float>(window_size, q);
-    auto d_window_shape = sycl::malloc_device<int>(dimensions_size, q);
-    auto d_window_offset = sycl::malloc_device<int>(dimensions_size, q);
+            cube_window_1d->shape[i] = 1;
+            mean_window_1d->shape[i] = 1;
+        }
 
-    q.memcpy(d_window_cross_data, strel_cross->data, window_size).wait();
-    q.memcpy(d_window_cube_data, strel_cube->data, window_size).wait();
-    q.memcpy(d_window_mean_data, strel_mean->data, window_size).wait();
-    q.memcpy(d_window_shape, strel_mean->vglShape->shape, dimensions_size).wait();
-    q.memcpy(d_window_offset, strel_mean->vglShape->offset, dimensions_size).wait();
-
-    auto window_cross = Window(d_window_cross_data, d_window_shape, d_window_offset, dimensions, window_size);
-    auto window_cube = Window(d_window_cube_data, d_window_shape, d_window_offset, dimensions, window_size);
-    auto window_mean = Window(d_window_mean_data, d_window_shape, d_window_offset, dimensions, window_size);
-    auto d_window_cross = sycl::malloc_device<Window>(sizeof(Window), q);
-    auto d_window_cube = sycl::malloc_device<Window>(sizeof(Window), q);
-    auto d_window_mean = sycl::malloc_device<Window>(sizeof(Window), q);
-    q.memcpy(d_window_cross, &window_cross, sizeof(Window)).wait();
-    q.memcpy(d_window_cube, &window_cube, sizeof(Window)).wait();
-    q.memcpy(d_window_mean, &window_mean, sizeof(Window)).wait();
-
-    Window window_cube_array[VGL_ARR_SHAPE_SIZE];
-    Window window_mean_array[VGL_ARR_SHAPE_SIZE];
-    auto window_linear_size = 3 * sizeof(float);
-    float window_cube_data_linear[] = { 1.0f, 1.0f, 1.0f };
-    float window_mean_data_linear[] = { 1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f };
-    Window* window_cube_array_d[VGL_ARR_SHAPE_SIZE];
-    Window* window_mean_array_d[VGL_ARR_SHAPE_SIZE];
-    auto d_window_cube_linear_data = sycl::malloc_device<float>(window_linear_size, q);
-    auto d_window_mean_linear_data = sycl::malloc_device<float>(window_linear_size, q);
-    q.memcpy(d_window_cube_linear_data, window_cube_data_linear, window_linear_size).wait();
-    q.memcpy(d_window_mean_linear_data, window_mean_data_linear, window_linear_size).wait();
-    int window_linear_shape[VGL_ARR_SHAPE_SIZE];
-    for (int i = 0; i < VGL_ARR_SHAPE_SIZE; ++i)
-        window_linear_shape[i] = 1;
-
-    for (int i = 1; i <= dimensions; ++i) {
-        window_linear_shape[i] = 3;
-        auto vgl_shape = new VglShape(window_linear_shape, dimensions);
-
-        auto d_window_linear_shape = sycl::malloc_device<int>(dimensions_size, q);
-        auto d_window_linear_offset = sycl::malloc_device<int>(dimensions_size, q);
-        q.memcpy(d_window_linear_shape, vgl_shape->shape, dimensions_size).wait();
-        q.memcpy(d_window_linear_offset, vgl_shape->offset, dimensions_size).wait();
-
-        window_cube_array[i] = Window(d_window_cube_linear_data, d_window_linear_shape, d_window_linear_offset, dimensions, window_linear_size);
-        window_cube_array_d[i] = sycl::malloc_device<Window>(sizeof(Window), q);
-        q.memcpy(window_cube_array_d[i], &window_cube_array[i], sizeof(Window)).wait();
-        window_mean_array[i] = Window(d_window_mean_linear_data, d_window_linear_shape, d_window_linear_offset, dimensions, window_linear_size);
-        window_mean_array_d[i] = sycl::malloc_device<Window>(sizeof(Window), q);
-        q.memcpy(window_mean_array_d[i], &window_mean_array[i], sizeof(Window)).wait();
-
-        delete vgl_shape;
-        window_linear_shape[i] = 1;
+        window_destroy(cube_window_1d);
+        window_destroy(mean_window_1d);
     }
 
     auto save_sample = [&](std::string name) {
-        q.memcpy(tmp->getImageData(), d_output_data, image_size).wait();
-        save_image(tmp, name.c_str());
+        q.memcpy(vglimage->getImageData(), d_output->data, d_output->size);
+        save_image(vglimage, name);
     };
 
     auto builder = BenchmarkBuilder();
-    builder.attach({ .name = "upload", .type = "group", .group = "memory", .func = [&] { q.memcpy(d_input_data, image->getImageData(), image_size).wait(); } });
-    builder.attach({ .name = "download", .type = "group", .group = "memory", .func = [&] { q.memcpy(tmp->getImageData(), d_input_data, image_size).wait(); } });
-    builder.attach({ .name = "copy", .type = "group", .group = "memory", .func = [&] { q.memcpy(d_output_data, d_input_data, image_size).wait(); }, .post = save_sample });
-    builder.attach({ .name = "invert", .type = "group", .group = "point", .func = [&] { q.parallel_for(image_size, InvertKernel(d_input, d_output)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "threshold", .type = "group", .group = "point", .func = [&] { q.parallel_for(image_size, ThresholdKernel(d_input, d_output, 128, 255)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "erode-cross", .type = "single", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cross)).wait(); }, .post = save_sample });
-    builder.attach({ .name = "erode-cube", .type = "single", .func = [&] { q.parallel_for(image_size, ErodeKernel(d_input, d_output, d_window_cube)).wait(); }, .post = save_sample });
+    builder.attach({
+        .name = "upload",
+        .type = "group",
+        .group = "memory",
+        .func = [&] { q.copy(image->data, d_input->data, image->size).wait(); },
+    });
+    builder.attach({
+        .name = "download",
+        .type = "group",
+        .group = "memory",
+        .func = [&] { q.copy(d_input->data, image->data, image->size).wait(); },
+    });
+    builder.attach({
+        .name = "copy",
+        .type = "group",
+        .group = "memory",
+        .post = save_sample,
+        .func = [&] { q.copy(d_input->data, d_output->data, image->size).wait(); },
+    });
+    builder.attach({
+        .name = "invert",
+        .type = "group",
+        .group = "point",
+        .post = save_sample,
+        .func = [&] { q.parallel_for(image->size, InvertKernel(d_input->self, d_output->self)).wait(); },
+    });
+    builder.attach({
+        .name = "threshold",
+        .type = "group",
+        .group = "point",
+        .post = save_sample,
+        .func = [&] { q.parallel_for(image->size, ThresholdKernel(d_input->self, d_output->self, 128, 255)).wait(); },
+    });
+    builder.attach({
+        .name = "erode-cross",
+        .type = "single",
+        .post = save_sample,
+        .func = [&] { q.parallel_for(image->size, ErodeKernel(d_input->self, d_output->self, d_cross_window->self)).wait(); },
+    });
+    builder.attach({
+        .name = "erode-cube",
+        .type = "single",
+        .post = save_sample,
+        .func = [&] { q.parallel_for(image->size, ErodeKernel(d_input->self, d_output->self, d_cube_window->self)).wait(); },
+    });
     builder.attach({
         .name = "split-erode-cube",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            q.parallel_for(image_size, ErodeKernel(d_input, d_aux, window_cube_array_d[1])).wait();
+            q.parallel_for(image->size, ErodeKernel(d_input->self, d_temp->self, d_cube_window_array[1]->self)).wait();
             for (int i = 2; i <= dimensions; ++i)
                 if (i & 0b1)
-                    q.parallel_for(image_size, ErodeKernel(d_output, d_aux, window_cube_array_d[i])).wait();
+                    q.parallel_for(image->size, ErodeKernel(d_output->self, d_temp->self, d_cube_window_array[i]->self)).wait();
                 else
-                    q.parallel_for(image_size, ErodeKernel(d_aux, d_output, window_cube_array_d[i])).wait();
+                    q.parallel_for(image->size, ErodeKernel(d_temp->self, d_output->self, d_cube_window_array[i]->self)).wait();
             if (dimensions & 0b1)
-                q.memcpy(d_aux_data, d_output_data, image_size).wait();
+                q.copy(d_output->data, d_temp->data, image->size).wait();
         },
-        .post = save_sample,
     });
     builder.attach({
         .name = "convolve",
         .type = "single",
-        .func = [&] { q.parallel_for(image_size, ConvolveKernel(d_input, d_output, d_window_mean)).wait(); },
         .post = save_sample,
+        .func = [&] { q.parallel_for(image->size, ConvolveKernel(d_input->self, d_output->self, d_mean_window->self)).wait(); },
     });
     builder.attach({
         .name = "split-convolve",
         .type = "single",
+        .post = save_sample,
         .func = [&] {
-            q.parallel_for(image_size, ConvolveKernel(d_input, d_aux, window_mean_array_d[1])).wait();
+            q.parallel_for(image->size, ConvolveKernel(d_input->self, d_temp->self, d_mean_window_array[1]->self)).wait();
             for (int i = 2; i <= dimensions; ++i)
                 if (i & 0b1)
-                    q.parallel_for(image_size, ConvolveKernel(d_output, d_aux, window_mean_array_d[i]))
+                    q.parallel_for(image->size, ConvolveKernel(d_output->self, d_temp->self, d_mean_window_array[i]->self))
                         .wait();
                 else
-                    q.parallel_for(image_size, ConvolveKernel(d_aux, d_output, window_mean_array_d[i]))
+                    q.parallel_for(image->size, ConvolveKernel(d_temp->self, d_output->self, d_mean_window_array[i]->self))
                         .wait();
             if (dimensions & 0b1)
-                q.memcpy(d_aux_data, d_output_data, image_size).wait();
+                q.copy(d_output->data, d_temp->data, image->size).wait();
         },
-        .post = save_sample,
     });
-
     builder.run(rounds);
-    sycl::free(d_window_cross_data, q);
-    sycl::free(d_window_cube_data, q);
-    sycl::free(d_window_mean_data, q);
-    sycl::free(d_window_shape, q);
-    sycl::free(d_window_offset, q);
-    sycl::free(d_offset, q);
-    sycl::free(d_shape, q);
-    sycl::free(d_input_data, q);
-    sycl::free(d_output_data, q);
-    sycl::free(d_window_cube_linear_data, q);
-    sycl::free(d_window_mean_linear_data, q);
-    sycl::free(d_window_cross, q);
-    sycl::free(d_window_cube, q);
-    sycl::free(d_window_mean, q);
-    sycl::free(d_input, q);
-    sycl::free(d_output, q);
-    sycl::free(d_aux, q);
+
+    image_destroy(image);
+    image_destroy_device(d_input, q);
+    image_destroy_device(d_output, q);
+    image_destroy_device(d_temp, q);
+    window_destroy_device(d_cross_window, q);
+    window_destroy_device(d_cube_window, q);
+    window_destroy_device(d_mean_window, q);
     for (auto i = 1; i <= dimensions; ++i) {
-        sycl::free(window_cube_array[i].shape, q);
-        sycl::free(window_cube_array[i].offset, q);
-        sycl::free(window_cube_array_d[i], q);
-        sycl::free(window_mean_array_d[i], q);
+        window_destroy_device(d_cube_window_array[i], q);
+        window_destroy_device(d_mean_window_array[i], q);
     }
-    delete strel_cross;
-    delete strel_cube;
-    delete strel_mean;
-    delete tmp;
+    delete[] d_cube_window_array;
+    delete[] d_mean_window_array;
 }

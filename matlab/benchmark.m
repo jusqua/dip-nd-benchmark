@@ -39,6 +39,7 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     end
     gpuImageStackSingle = gpuArray(single(reshapedData));
     gpuImageStack = gpuArray(uint8(reshapedData));
+    gpuImage = gpuArray(reshapedData);
     gpuDev = gpuDevice();
 
     seCubeSep = cell(1, numDims);
@@ -48,10 +49,8 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     end
     if numDims == 1
         seCube = seCubeSep{1};
-    elseif numDims == 2
+    else % numDims == 2
         seCube = strel('square', 3);
-    else % numDims == 3
-        seCube = strel('cube', 3);
     end
     if numDims == 1
         seCross = seCubeSep{1};
@@ -77,57 +76,59 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
 
     thresholdLevel = 128;
 
-    builder = BenchmarkBuilder();
+    builder = BenchmarkBuilder(gpuDev);
 
     builder.attach('upload', 'group', 'memory', ...
-        @() gpuArray(single(reshapedData)), ...
+        @() gpuArray(reshapedData), ...
         @(name) wait(gpuDev));
 
     builder.attach('download', 'group', 'memory', ...
-        @() gather(gpuImageStackSingle), ...
+        @() gather(gpuImage), ...
         @(name) wait(gpuDev));
 
     builder.attach('copy', 'group', 'memory', ...
-        @() gpuImageStack + 0, ...
-        @(name) save_copy(gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @() gpuImageStack(:), ...
+        @(name) save_copy(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('threshold', 'group', 'point', ...
         @() (gpuImageStack > thresholdLevel), ...
-        @(name) save_threshold(gpuImageStack, thresholdLevel, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @(name) save_threshold(gpuDev, gpuImageStack, thresholdLevel, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('invert', 'group', 'point', ...
         @() imcomplement(gpuImageStack), ...
-        @(name) save_invert(gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @(name) save_invert(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     if numDims < 3
         builder.attach('erode-cross', 'single', '', ...
             @() imerode(gpuImageStack, seCross), ...
-            @(name) save_erode_cross(gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+            @(name) save_erode_cross(gpuDev, gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
     end
-    
-    if numDims < 4
+
+    if numDims < 3
         builder.attach('erode-cube', 'single', '', ...
             @() imerode(gpuImageStack, seCube), ...
-            @(name) save_erode_cube(gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+            @(name) save_erode_cube(gpuDev, gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
     end
 
     builder.attach('split-erode-cube', 'single', '', ...
         @() perform_split_erode_cube(gpuImageStack, seCubeSep, numDims), ...
-        @(name) save_split_erode_cube(gpuImageStack, seCubeSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @(name) save_split_erode_cube(gpuDev, gpuImageStack, seCubeSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('convolve', 'single', '', ...
         @() convn(gpuImageStackSingle, seMean, 'same'), ...
-        @(name) save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @(name) save_convolve(gpuDev, gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('split-convolve', 'single', '', ...
         @() perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims), ...
-        @(name) save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @(name) save_split_convolve(gpuDev, gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.run(numRounds);
 end
 
-function save_copy(gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(gpuImageStack + 0), [rows, cols, numImages]);
+function save_copy(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = gpuImageStack(:);
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'copy'));
     outputResultPattern = fullfile(outputFolder, 'copy', filePattern);
     for i = startIndex:endIndex
@@ -137,8 +138,10 @@ function save_copy(gpuImageStack, rows, cols, numImages, outputFolder, filePatte
     end
 end
 
-function save_threshold(gpuImageStack, thresholdLevel, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(im2uint8(gpuImageStack > thresholdLevel)), [rows, cols, numImages]);
+function save_threshold(gpuDev, gpuImageStack, thresholdLevel, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = im2uint8(gpuImageStack > thresholdLevel);
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'threshold'));
     outputResultPattern = fullfile(outputFolder, 'threshold', filePattern);
     for i = startIndex:endIndex
@@ -148,8 +151,10 @@ function save_threshold(gpuImageStack, thresholdLevel, rows, cols, numImages, ou
     end
 end
 
-function save_invert(gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(imcomplement(gpuImageStack)), [rows, cols, numImages]);
+function save_invert(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = imcomplement(gpuImageStack);
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'invert'));
     outputResultPattern = fullfile(outputFolder, 'invert', filePattern);
     for i = startIndex:endIndex
@@ -159,8 +164,10 @@ function save_invert(gpuImageStack, rows, cols, numImages, outputFolder, filePat
     end
 end
 
-function save_erode_cross(gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(imerode(gpuImageStack, seCross)), [rows, cols, numImages]);
+function save_erode_cross(gpuDev, gpuImageStack, seCross, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = imerode(gpuImageStack, seCross);
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'erode-cross'));
     outputResultPattern = fullfile(outputFolder, 'erode-cross', filePattern);
     for i = startIndex:endIndex
@@ -170,8 +177,10 @@ function save_erode_cross(gpuImageStack, seCross, rows, cols, numImages, outputF
     end
 end
 
-function save_erode_cube(gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(imerode(gpuImageStack, seCube)), [rows, cols, numImages]);
+function save_erode_cube(gpuDev, gpuImageStack, seCube, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = imerode(gpuImageStack, seCube);
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'erode-cube'));
     outputResultPattern = fullfile(outputFolder, 'erode-cube', filePattern);
     for i = startIndex:endIndex
@@ -181,8 +190,9 @@ function save_erode_cube(gpuImageStack, seCube, rows, cols, numImages, outputFol
     end
 end
 
-function save_split_erode_cube(gpuImageStack, seCubeSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+function save_split_erode_cube(gpuDev, gpuImageStack, seCubeSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
     result = perform_split_erode_cube(gpuImageStack, seCubeSep, numDims);
+    wait(gpuDev);
     result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'split-erode-cube'));
     outputResultPattern = fullfile(outputFolder, 'split-erode-cube', filePattern);
@@ -193,8 +203,10 @@ function save_split_erode_cube(gpuImageStack, seCubeSep, numDims, rows, cols, nu
     end
 end
 
-function save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = reshape(gather(convn(gpuImageStackSingle, seMean, 'same')), [rows, cols, numImages]);
+function save_convolve(gpuDev, gpuImageStackSingle, seMean, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = convn(gpuImageStackSingle, seMean, 'same');
+    wait(gpuDev);
+    result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'convolve'));
     outputResultPattern = fullfile(outputFolder, 'convolve', filePattern);
     for i = startIndex:endIndex
@@ -204,8 +216,9 @@ function save_convolve(gpuImageStackSingle, seMean, rows, cols, numImages, outpu
     end
 end
 
-function save_split_convolve(gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+function save_split_convolve(gpuDev, gpuImageStackSingle, seMeanSep, numDims, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
     result = perform_split_convolve(gpuImageStackSingle, seMeanSep, numDims);
+    wait(gpuDev);
     result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'split-convolve'));
     outputResultPattern = fullfile(outputFolder, 'split-convolve', filePattern);

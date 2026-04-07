@@ -1,11 +1,13 @@
 classdef BenchmarkBuilder < handle
     properties (Access = private)
         specs
+        gpuDev
     end
 
     methods
-        function obj = BenchmarkBuilder()
+        function obj = BenchmarkBuilder(gpuDev)
             obj.specs = {};
+            obj.gpuDev = gpuDev;
         end
 
         function attach(obj, name, type, group, func, varargin)
@@ -46,6 +48,7 @@ classdef BenchmarkBuilder < handle
         function perform_benchmark(obj, rounds, spec)
             tic;
             spec.func();
+            wait(obj.gpuDev);
             once_duration = toc;
 
             fprintf("%s,%s,%s,%f", spec.name, spec.type, spec.group, once_duration);
@@ -61,6 +64,7 @@ classdef BenchmarkBuilder < handle
             tic;
             for i = 1:rounds
                 spec.func();
+                wait(obj.gpuDev);
             end
             total_duration = toc;
             mean_duration = total_duration / rounds;

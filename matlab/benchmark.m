@@ -87,8 +87,8 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
         @(name) wait(gpuDev));
 
     builder.attach('copy', 'group', 'memory', ...
-        @() gpuImageStack(:), ...
-        @(name) save_copy(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
+        @() arrayfun(@(x) x, gpuImage), ... % Silly way to force deepcopy
+        @(name) save_copy(gpuDev, gpuImage, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex));
 
     builder.attach('threshold', 'group', 'point', ...
         @() (gpuImageStack > thresholdLevel), ...
@@ -125,8 +125,8 @@ function benchmark(inputPattern, startIndex, endIndex, numRounds, outputFolder, 
     builder.run(numRounds);
 end
 
-function save_copy(gpuDev, gpuImageStack, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
-    result = gpuImageStack(:);
+function save_copy(gpuDev, gpuImage, rows, cols, numImages, outputFolder, filePattern, startIndex, endIndex)
+    result = arrayfun(@(x) x, gpuImage);
     wait(gpuDev);
     result = reshape(gather(result), [rows, cols, numImages]);
     [~] = mkdir(fullfile(outputFolder, 'copy'));

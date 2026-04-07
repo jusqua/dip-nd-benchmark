@@ -1,8 +1,5 @@
-import json
 import csv
 import os
-import random
-import re
 
 import matplotlib.pyplot as plot
 import numpy as np
@@ -10,18 +7,6 @@ import numpy as np
 OUTPUT_DIR = "results"
 TXT_FILENAME = "benchmark.txt"
 CSV_FILENAME = "benchmark.csv"
-
-
-def random_high_contrast_color():
-    while True:
-        r = random.randint(0, 255)
-        g = random.randint(0, 255)
-        b = random.randint(0, 255)
-
-        luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-        if luminance < 120:
-            return (r, g, b)
 
 
 def main():
@@ -42,7 +27,7 @@ def main():
     tech_color_map: dict[str, str] = {}
     group_results_map: dict[str, dict[str, dict[str, list[float]]]] = {}
     single_results_map: dict[str, dict[str, list[float]]] = {}
-    for tech in os.listdir(OUTPUT_DIR):
+    for tech in sorted(os.listdir(OUTPUT_DIR)):
         tech_path = os.path.join(OUTPUT_DIR, tech)
         if not os.path.isdir(tech_path):
             continue
@@ -51,7 +36,7 @@ def main():
             tech_name_map[tech] = name.read().strip()
 
         tech_results_dimensions_map[tech] = {}
-        for dimension in os.listdir(tech_path):
+        for dimension in sorted(os.listdir(tech_path)):
             results_path = os.path.join(tech_path, dimension)
             if not os.path.isdir(results_path):
                 continue

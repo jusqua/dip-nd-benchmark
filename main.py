@@ -100,8 +100,8 @@ def main():
         ax.legend([x[0] for x in result_lines], line_titles)
         yll, yul = (log(lim, 10) for lim in ax.get_ylim())
         if floor(yll) == floor(yul):
-            yul = yll + 1
-        ax.set_ylim(10**yll, 10**yul)
+            yll = 0 if yll - 1 < 0 else yll - 1
+        ax.set_ylim(bottom=10**yll)
 
         plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"), bbox_inches="tight")
         plot.close()
@@ -176,8 +176,8 @@ def main():
         ax.legend()
         yll, yul = (log(lim, 10) for lim in ax.get_ylim())
         if floor(yll) == floor(yul):
-            yul = yll + 1
-        ax.set_ylim(10**yll, 10**yul)
+            yll = 0 if yll - 1 < 0 else yll - 1
+        ax.set_ylim(bottom=10**yll)
 
         plot.tight_layout()
         plot.savefig(

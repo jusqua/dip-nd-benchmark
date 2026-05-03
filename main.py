@@ -1,5 +1,6 @@
 import csv
 import os
+from math import floor, log
 
 import matplotlib.pyplot as plot
 import numpy as np
@@ -96,8 +97,11 @@ def main():
         ax.tick_params(axis="y", labelsize=12)
         ax.set_xticks(dimensions, dimensions_label, fontsize=12)
         ax.grid(True, axis="both", alpha=0.3)
-
         ax.legend([x[0] for x in result_lines], line_titles)
+        yll, yul = (log(lim, 10) for lim in ax.get_ylim())
+        if floor(yll) == floor(yul):
+            yul = yll + 1
+        ax.set_ylim(10**yll, 10**yul)
 
         plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"), bbox_inches="tight")
         plot.close()
@@ -170,6 +174,10 @@ def main():
         ax.tick_params(axis="y", labelsize=12)
         ax.grid(True, axis="y", alpha=0.3)
         ax.legend()
+        yll, yul = (log(lim, 10) for lim in ax.get_ylim())
+        if floor(yll) == floor(yul):
+            yul = yll + 1
+        ax.set_ylim(10**yll, 10**yul)
 
         plot.tight_layout()
         plot.savefig(

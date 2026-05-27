@@ -31,12 +31,7 @@ classdef BenchmarkBuilder < handle
                 rounds = 1;
             end
 
-            fprintf("operator,type,group,once");
-            if rounds > 1
-                fprintf(",mean");
-            end
-            fprintf("\n");
-
+            fprintf("operator,type,group,duration\n");
             for i = 1:length(obj.specs)
                 spec = obj.specs{i};
                 obj.perform_benchmark(rounds, spec);
@@ -46,30 +41,18 @@ classdef BenchmarkBuilder < handle
 
     methods (Access = private)
         function perform_benchmark(obj, rounds, spec)
-            tic;
+            % Warm up
             spec.func();
             wait(obj.gpuDev);
-            once_duration = toc;
 
-            fprintf("%s,%s,%s,%f", spec.name, spec.type, spec.group, once_duration);
-
-            if rounds <= 1
-                fprintf("\n");
-                if ~isempty(spec.post)
-                    spec.post(spec.name);
-                end
-                return;
-            end
-
-            tic;
             for i = 1:rounds
+                tic;
                 spec.func();
                 wait(obj.gpuDev);
-            end
-            total_duration = toc;
-            mean_duration = total_duration / rounds;
+                duration = toc;
 
-            fprintf(",%f\n", mean_duration);
+                fprintf("%s,%s,%s,%f\n", spec.name, spec.type, spec.group, duration);
+            end
 
             if ~isempty(spec.post)
                 spec.post(spec.name);

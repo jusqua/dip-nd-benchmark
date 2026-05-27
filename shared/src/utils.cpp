@@ -96,25 +96,23 @@ Window* window_create_from_type(WindowType type, uint8_t dimension)
 
 void BenchmarkBuilder::perform_benchmark(std::size_t rounds, BenchmarkSpec const& spec)
 {
-    auto time_start_once = std::chrono::high_resolution_clock::now();
+    // Warm up
     spec.func();
-    auto time_end_once = std::chrono::high_resolution_clock::now();
-    double once_duration = std::chrono::duration<double>(time_end_once - time_start_once).count();
 
-    std::cout << spec.name << "," << spec.type << "," << spec.group << "," << once_duration;
-
-    if (rounds <= 1) {
-        std::cout << "\n";
-        return;
+    for (size_t i = 0; i < rounds; ++i)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        spec.func();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout
+            << spec.name << ","
+            << spec.type << ","
+            << spec.group << ","
+            << std::chrono::duration<double>(end - start).count() << "\n";
     }
 
-    auto mean_start_times = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < rounds; ++i)
-        spec.func();
-    auto mean_end_times = std::chrono::high_resolution_clock::now();
-
-    double mean_duration = std::chrono::duration<double>(mean_end_times - mean_start_times).count() / rounds;
-    std::cout << "," << mean_duration << "\n";
+    if (spec.post != nullptr)
+        spec.post(spec.name);
 }
 
 void BenchmarkBuilder::attach(BenchmarkSpec&& spec)
@@ -124,15 +122,8 @@ void BenchmarkBuilder::attach(BenchmarkSpec&& spec)
 
 void BenchmarkBuilder::run(std::size_t rounds)
 {
-    std::cout << "operator,type,group,once";
-    if (rounds <= 1)
-        std::cout << "\n";
-    else
-        std::cout << ",mean\n";
+    if (rounds < 1) rounds = 1;
 
-    for (auto const& spec : m_specs) {
-        perform_benchmark(rounds, spec);
-        if (spec.post != nullptr)
-            spec.post(spec.name);
-    }
+    std::cout << "operator,type,group,duration\n";
+    for (auto const& spec : m_specs) perform_benchmark(rounds, spec);
 }

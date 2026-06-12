@@ -23,11 +23,10 @@ def main():
         "#E60049",
     ]
 
-    tech_results_dimensions_map: dict[str, dict[str, list[int]]] = {}
     tech_name_map: dict[str, str] = {}
     tech_color_map: dict[str, str] = {}
-    group_results_map: dict[str, dict[str, dict[str, list[float]]]] = {}
-    single_results_map: dict[str, dict[str, list[float]]] = {}
+    rgroup_map: dict[str, dict[str, dict[str, list[float]]]] = {}
+    rsingle_map: dict[str, dict[str, dict[int, list[float]]]] = {}
     for tech in sorted(os.listdir(OUTPUT_DIR)):
         tech_path = os.path.join(OUTPUT_DIR, tech)
         if not os.path.isdir(tech_path):
@@ -36,41 +35,41 @@ def main():
         with open(os.path.join(tech_path, TXT_FILENAME)) as name:
             tech_name_map[tech] = name.read().strip()
 
-        tech_results_dimensions_map[tech] = {}
         for dimension in sorted(os.listdir(tech_path)):
             results_path = os.path.join(tech_path, dimension)
             if not os.path.isdir(results_path):
                 continue
 
-            current_dimension = int("".join(filter(str.isdigit, dimension)))
+            dimension = int("".join(filter(str.isdigit, dimension)))
             with open(os.path.join(results_path, CSV_FILENAME)) as results:
                 reader = csv.reader(results)
                 next(reader)
                 for row in reader:
-                    if tech_results_dimensions_map[tech].get(row[0]) is None:
-                        tech_results_dimensions_map[tech][row[0]] = []
-                    tech_results_dimensions_map[tech][row[0]].append(current_dimension)
+                    operator, rtype, group, duration = row
 
-                    if row[1] == "group":
-                        if group_results_map.get(row[2]) is None:
-                            group_results_map[row[2]] = {}
-                        if group_results_map[row[2]].get(row[0]) is None:
-                            group_results_map[row[2]][row[0]] = {}
-                        if group_results_map[row[2]][row[0]].get(tech) is None:
-                            group_results_map[row[2]][row[0]][tech] = []
-                        group_results_map[row[2]][row[0]][tech].append(
-                            float(row[-1]) * 1000000
-                        )
-                    if row[1] == "single":
-                        if single_results_map.get(row[0]) is None:
-                            single_results_map[row[0]] = {}
-                        if single_results_map[row[0]].get(tech) is None:
-                            single_results_map[row[0]][tech] = []
-                        single_results_map[row[0]][tech].append(
-                            float(row[-1]) * 1000000
+                    if rtype == "group":
+                        if rgroup_map.get(group) is None:
+                            rgroup_map[group] = {}
+                        if rgroup_map[group].get(operator) is None:
+                            rgroup_map[group][operator] = {}
+                        if rgroup_map[group][operator].get(tech) is None:
+                            rgroup_map[group][operator][tech] = []
+                        rgroup_map[group][operator][tech].append(np.float64(duration))
+                    if rtype == "single":
+                        if rsingle_map.get(operator) is None:
+                            rsingle_map[operator] = {}
+                        if rsingle_map[operator].get(tech) is None:
+                            rsingle_map[operator][tech] = {}
+                        if rsingle_map[operator][tech].get(dimension) is None:
+                            rsingle_map[operator][tech][dimension] = []
+                        rsingle_map[operator][tech][dimension].append(
+                            np.float64(duration)
                         )
 
-    for operator, tech_map in single_results_map.items():
+    for tech in tech_color_map.keys():
+        tech_color_map[tech] = color_list.pop()
+
+    for operator, tech_map in rsingle_map.items():
         _, ax = plot.subplots(figsize=(8, 6))
 
         result_lines = []
@@ -79,14 +78,11 @@ def main():
         dimensions_label = ("1D", "2D", "3D", "4D", "5D")
 
         for tech, results in tech_map.items():
-            color = tech_color_map.get(tech)
-            if color is None:
-                color = tech_color_map[tech] = color_list.pop()
             result_lines.append(
                 plot.plot(
-                    tech_results_dimensions_map[tech][operator],
-                    results,
-                    color=color,
+                    list(results.keys()),
+                    [np.mean(v) * 1000000 for v in results.values()],
+                    color=tech_color_map.get(tech),
                     marker="o",
                 )
             )
@@ -106,43 +102,31 @@ def main():
         plot.savefig(os.path.join(OUTPUT_DIR, f"{operator}.png"), bbox_inches="tight")
         plot.close()
 
-    for group, results_map in group_results_map.items():
+    for group, op_map in rgroup_map.items():
         _, ax = plot.subplots(figsize=(14, 7))
 
-        operators = list(results_map.keys())
-        technologies = set()
-        for op_data in results_map.values():
-            technologies.update(op_data.keys())
-        technologies = sorted(list(technologies))
+        ops = list(op_map.keys())
+        techs = set()
+        for tech_map in op_map.values():
+            techs.update(tech_map.keys())
+        techs = sorted(list(techs))
 
-        x = np.arange(len(operators))
-        width = 0.8 / len(technologies)
-
+        x = np.arange(len(ops))
+        width = 0.8 / len(techs)
         bar_containers = []
         lowest_bar_height = float("inf")
 
-        for idx, tech in enumerate(technologies):
-            values = []
-            for operator in operators:
-                if tech in results_map[operator]:
-                    avg_value = np.mean(results_map[operator][tech])
-                    values.append(np.round(avg_value, 0))
-                else:
-                    values.append(0)
-
-            color = tech_color_map.get(tech)
-            if color is None:
-                color = tech_color_map[tech] = color_list.pop()
-
+        for idx, tech in enumerate(techs):
             bars = ax.bar(
                 x + idx * width,
-                values,
+                [np.round(np.mean(op_map[op][tech]) * 1000000, 0) for op in ops],
                 width,
                 label=tech_name_map.get(tech, tech),
-                color=color,
+                color=tech_color_map.get(tech),
                 alpha=0.8,
             )
             bar_containers.append(bars)
+
             for bar in bars:
                 height = bar.get_height()
                 if height < lowest_bar_height:
@@ -165,8 +149,8 @@ def main():
 
         ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")
         ax.set_xticks(
-            x + width * (len(technologies) - 1) / 2,
-            [operator.title() for operator in operators],
+            x + width * (len(techs) - 1) / 2,
+            [operator.title() for operator in ops],
             fontsize=14,
             weight="bold",
         )

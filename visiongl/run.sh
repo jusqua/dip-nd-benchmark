@@ -10,8 +10,8 @@ INDEX_0=0
 INDEX_N=335
 ROUNDS=${1:-0}
 
-OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/visiongl-buf"
-TECH_NAME="VisionGL Buffer"
+OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/vgl-buf"
+TECH_NAME="VisionGL (Buffer)"
 echo "Building $TECH_NAME benchmark"
 rm -rf $BUILD_FOLDER
 cmake -G Ninja -S . -B $BUILD_FOLDER -D CMAKE_BUILD_TYPE=Release -D CMAKE_LINKER_TYPE=LLD -D CMAKE_CXX_COMPILER=clang++ > /dev/null 2>&1
@@ -30,8 +30,8 @@ echo "Running $TECH_NAME 5D benchmark"
 $BUILD_FOLDER/benchmark $IMAGE_PATTERN $INDEX_0 $INDEX_N $ROUNDS $OUTPUT_FOLDER/5D 256 256 2 24 7 > "$OUTPUT_FOLDER/5D/$CSV_FILENAME" 2> "$OUTPUT_FOLDER/5D/$LOG_FILENAME"
 echo "Results and logs saved in $(realpath $OUTPUT_FOLDER)"
 
-OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/visiongl-tex"
-TECH_NAME="VisionGL Texture"
+OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/vgl-tex"
+TECH_NAME="VisionGL (Texture)"
 echo "Building $TECH_NAME benchmark"
 rm -rf $BUILD_FOLDER
 cmake -G Ninja -S . -B $BUILD_FOLDER -D CMAKE_BUILD_TYPE=Release -D CMAKE_LINKER_TYPE=LLD -D CMAKE_CXX_COMPILER=clang++ -D FORCE_BUFFER=OFF > /dev/null 2>&1

@@ -11,16 +11,17 @@ CSV_FILENAME = "benchmark.csv"
 
 
 def main():
+    # Dutch field from https://www.geeksforgeeks.org/data-visualization/color-palettes-for-data-visualization/
     color_list = [
-        "#00BFA0",
-        "#B3D4FF",
-        "#DC0AB4",
-        "#FFA300",
-        "#9B19F5",
         "#E6D800",
-        "#50E991",
+        "#B3D4FF",
+        "#9B19F5",
+        "#DC0AB4",
         "#0BB4FF",
         "#E60049",
+        "#FFA300",
+        "#50E991",
+        "#00BFA0",
     ]
 
     tech_name_map: dict[str, str] = {}
@@ -66,7 +67,7 @@ def main():
                             np.float64(duration)
                         )
 
-    for tech in tech_color_map.keys():
+    for tech in tech_name_map.keys():
         tech_color_map[tech] = color_list.pop()
 
     for operator, tech_map in rsingle_map.items():
@@ -81,7 +82,7 @@ def main():
             result_lines.append(
                 plot.plot(
                     list(results.keys()),
-                    [np.mean(v) * 1000000 for v in results.values()],
+                    [np.mean(v) * 1_000_000 for v in results.values()],
                     color=tech_color_map.get(tech),
                     marker="o",
                 )
@@ -103,7 +104,7 @@ def main():
         plot.close()
 
     for group, op_map in rgroup_map.items():
-        _, ax = plot.subplots(figsize=(14, 7))
+        _, ax = plot.subplots(figsize=(8, 6))
 
         ops = list(op_map.keys())
         techs = set()
@@ -119,7 +120,7 @@ def main():
         for idx, tech in enumerate(techs):
             bars = ax.bar(
                 x + idx * width,
-                [np.round(np.mean(op_map[op][tech]) * 1000000, 0) for op in ops],
+                [np.round(np.mean(op_map[op][tech]) * 1_000_000, 0) for op in ops],
                 width,
                 label=tech_name_map.get(tech, tech),
                 color=tech_color_map.get(tech),
@@ -144,7 +145,7 @@ def main():
                         va="bottom",
                         weight="bold",
                         rotation=90,
-                        fontsize=12,
+                        fontsize=10,
                     )
 
         ax.set_ylabel("Time (μs)", fontsize=14, weight="bold")

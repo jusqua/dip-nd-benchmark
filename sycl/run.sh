@@ -10,13 +10,12 @@ INDEX_0=0
 INDEX_N=335
 ROUNDS=${1:-0}
 
-echo "Building AdaptiveCpp SYCL benchmark"
+OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/sycl-acpp"
+TECH_NAME="SYCL (AdaptiveCpp)"
+echo "Building $TECH_NAME benchmark"
 rm -rf $BUILD_FOLDER
 cmake -G Ninja -S . -B $BUILD_FOLDER -D CMAKE_BUILD_TYPE=Release -D CMAKE_LINKER_TYPE=LLD -D CMAKE_CXX_COMPILER=acpp > /dev/null 2>&1
 cmake --build $BUILD_FOLDER > /dev/null 2>&1
-
-OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/acpp-sycl"
-TECH_NAME="AdaptiveCpp SYCL"
 mkdir -p "$OUTPUT_FOLDER/1D" "$OUTPUT_FOLDER/2D" "$OUTPUT_FOLDER/3D" "$OUTPUT_FOLDER/4D" "$OUTPUT_FOLDER/5D"
 echo $TECH_NAME > "$OUTPUT_FOLDER/$TXT_FILENAME"
 echo "Running $TECH_NAME 1D benchmark"
@@ -31,13 +30,12 @@ echo "Running $TECH_NAME 5D benchmark"
 ACPP_DEBUG_LEVEL=0 $BUILD_FOLDER/benchmark $IMAGE_PATTERN $INDEX_0 $INDEX_N $ROUNDS $OUTPUT_FOLDER/5D 256 256 2 24 7 > "$OUTPUT_FOLDER/5D/$CSV_FILENAME" 2> "$OUTPUT_FOLDER/5D/$LOG_FILENAME"
 echo "Results and logs saved in $(realpath $OUTPUT_FOLDER)"
 
-echo "Building Intel LLVM SYCL benchmark"
+OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/sycl-dpcpp"
+TECH_NAME="SYCL (DPC++)"
+echo "Building $TECH_NAME benchmark"
 rm -rf $BUILD_FOLDER
 cmake -G Ninja -S . -B $BUILD_FOLDER -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_COMPILER=icpx -D CMAKE_CXX_FLAGS="-fsycl -fsycl-targets=nvidia_gpu_sm_90" > /dev/null 2>&1
 cmake --build $BUILD_FOLDER > /dev/null 2>&1
-
-OUTPUT_FOLDER="$OUTPUT_FOLDER_BASE/intel-sycl"
-TECH_NAME="Intel LLVM SYCL"
 mkdir -p "$OUTPUT_FOLDER/1D" "$OUTPUT_FOLDER/2D" "$OUTPUT_FOLDER/3D" "$OUTPUT_FOLDER/4D" "$OUTPUT_FOLDER/5D"
 echo $TECH_NAME > "$OUTPUT_FOLDER/$TXT_FILENAME"
 echo "Running $TECH_NAME 1D benchmark"

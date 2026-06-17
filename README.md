@@ -2,12 +2,11 @@
 
 ## Requirements
 
-- Intel LLVM Compiler
+- Intel DPC++ Compiler
 - AdaptiveCpp Compiler
-- CUDA Compiler
+- NVIDIA CUDA Compiler
 - MATLAB
-- [VisionGL v0.2](https://github.com/jusqua/visiongl)
-- libtiff
+- [VisionGL v0.2](https://github.com/jusqua/visiongl) (with TIFF support)
 
 ## Usage
 
